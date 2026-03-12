@@ -1,19 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';  // ✅ Added useState
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';  // ✅ Added toast import
 
 const DashboardPage = () => {
   const { customers, brokers, purchases, getStats } = useData();
   
+  // ✅ Added state for logout confirmation
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
   const stats = getStats();
 
+  // ✅ Fixed logout function
   const handleLogout = () => {
-  localStorage.removeItem('arctic-logged-in');
-  localStorage.removeItem('arctic-login-time');
-  toast.success('Logged out successfully!');
-  window.location.href = '/login';
-};
-
+    localStorage.removeItem('arctic-logged-in');
+    localStorage.removeItem('arctic-login-time');
+    toast.success('Logged out successfully!');
+    window.location.href = '/login';
+  };
 
   // Safe calculations
   const totalCustomers = stats?.totalCustomers || 0;
@@ -48,16 +52,17 @@ const DashboardPage = () => {
               <p className="text-blue-100 text-sm">Dashboard Overview</p>
             </div>
           </div>
-      <button
-  onClick={() => setShowLogoutConfirm(true)}
-  className="flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
->
-  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-  </svg>
-  Logout
-</button>
-
+          
+          {/* Logout Button - Fixed to use setShowLogoutConfirm */}
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Logout
+          </button>
         </div>
       </header>
 
@@ -252,6 +257,32 @@ const DashboardPage = () => {
         </div>
 
       </main>
+
+      {/* ✅ Added Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Confirm Logout</h3>
+              <p className="text-sm text-gray-500 mt-1">Are you sure you want to logout?</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

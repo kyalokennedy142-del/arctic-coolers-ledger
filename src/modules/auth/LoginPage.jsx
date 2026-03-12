@@ -7,7 +7,7 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Check if already logged in on mount
+  // Check if already logged in on mount
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('arctic-logged-in');
     if (isLoggedIn === 'true') {
@@ -22,13 +22,10 @@ const LoginPage = () => {
 
     const correctPassword = import.meta.env.VITE_APP_PASSWORD || '1234';
     
-    // Simulate small delay for better UX
     setTimeout(() => {
       if (password === correctPassword) {
-        // ✅ Save login state to localStorage
         localStorage.setItem('arctic-logged-in', 'true');
         localStorage.setItem('arctic-login-time', new Date().toISOString());
-        
         toast.success('Login successful! Welcome back.');
         navigate('/');
       } else {
@@ -97,7 +94,6 @@ const LoginPage = () => {
             </button>
           </form>
 
-          {/* Footer */}
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-center text-xs text-gray-500">
               🔒 Protected access • Arctic Coolers Ltd
@@ -108,7 +104,6 @@ const LoginPage = () => {
           </div>
         </div>
 
-        {/* Help Text */}
         <div className="mt-6 text-center">
           <p className="text-blue-100 text-sm">
             Forgot password? Contact your administrator
