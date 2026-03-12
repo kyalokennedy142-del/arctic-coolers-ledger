@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';  // ← ADDED
 
 const BrokersPage = () => {
   const { 
@@ -32,18 +33,24 @@ const BrokersPage = () => {
 
   const getExpandedBroker = () => brokers.find((b) => b.id === expandedBrokerId);
 
+  // ✅ FIXED: handleAddBroker with toast
   const handleAddBroker = () => {
-    if (!newBroker.name) return alert('Name is required');
+    if (!newBroker.name) {
+      toast.error('Name is required');  // ← CHANGED from alert
+      return;
+    }
     addBroker({
       name: newBroker.name,
       phone: newBroker.phone,
       area: newBroker.area,
       openingBalance: Number(newBroker.openingBalance),
     });
+    toast.success('Broker added successfully!');  // ← ADDED
     setIsAddBrokerOpen(false);
     setNewBroker({ name: '', phone: '', area: '', openingBalance: 0 });
   };
 
+  // ✅ FIXED: handleAddEntry with toast
   const handleAddEntry = () => {
     const broker = getExpandedBroker();
     if (!broker) return;
@@ -64,8 +71,10 @@ const BrokersPage = () => {
 
     if (editingEntry) {
       updateEntry(broker.id, editingEntry.id, entryData);
+      toast.success('Entry updated successfully!');  // ← ADDED
     } else {
       addEntry(broker.id, entryData);
+      toast.success('Entry added successfully!');  // ← ADDED
     }
 
     setIsAddEntryOpen(false);
@@ -84,15 +93,19 @@ const BrokersPage = () => {
     setIsAddEntryOpen(true);
   };
 
+  // ✅ FIXED: handleDeleteEntry with toast
   const handleDeleteEntry = (brokerId, entryId) => {
     if (window.confirm('Are you sure you want to delete this entry?')) {
       deleteEntry(brokerId, entryId);
+      toast.success('Entry deleted');  // ← ADDED
     }
   };
 
+  // ✅ FIXED: handleDeleteBroker with toast
   const handleDeleteBroker = (brokerId) => {
     if (window.confirm('Are you sure you want to delete this broker? All their entries will also be deleted.')) {
       deleteBroker(brokerId);
+      toast.success('Broker deleted');  // ← ADDED
       if (expandedBrokerId === brokerId) {
         setExpandedBrokerId(null);
       }
@@ -119,12 +132,13 @@ const BrokersPage = () => {
     setIsStatementOpen(true);
   };
 
+  // ✅ FIXED: WhatsApp URL (removed space)
   const sendWhatsApp = () => {
     const broker = getExpandedBroker();
     if (!broker) return;
     const encodedText = encodeURIComponent(statementText);
     const cleanPhone = broker.phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');  // ← FIXED: no space
   };
 
   const handleCloseEntryModal = () => {
@@ -136,7 +150,6 @@ const BrokersPage = () => {
   const expandedBroker = getExpandedBroker();
   const currentBalance = expandedBroker ? calculateBrokerBalance(expandedBroker) : 0;
   
-  // ✅ FIXED: Simple, readable balance calculation
   let prevBalanceForEntry = 0;
   if (expandedBroker) {
     if (editingEntry) {
@@ -377,9 +390,249 @@ const BrokersPage = () => {
         )}
       </main>
 
-      {/* Modals remain the same - omitted for brevity, but ensure all number inputs have step attributes */}
-      {/* Add Broker Modal, Add Entry Modal, Statement Modal... */}
-      
+      {/* Add Broker Modal */}
+      {isAddBrokerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800">Add Broker</h2>
+              <button
+                onClick={() => setIsAddBrokerOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newBroker.name}
+                  onChange={(e) => setNewBroker({ ...newBroker, name: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="Broker name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={newBroker.phone}
+                  onChange={(e) => setNewBroker({ ...newBroker, phone: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="Phone number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
+                <input
+                  type="text"
+                  value={newBroker.area}
+                  onChange={(e) => setNewBroker({ ...newBroker, area: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="Area or region"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Opening Balance (KSh)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newBroker.openingBalance}
+                  onChange={(e) => setNewBroker({ ...newBroker, openingBalance: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 flex gap-3">
+              <button
+                onClick={() => setIsAddBrokerOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBroker}
+                className="flex-1 rounded-lg bg-orange-600 px-4 py-2.5 font-semibold text-white hover:bg-orange-700"
+              >
+                Add Broker
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Entry Modal */}
+      {isAddEntryOpen && expandedBroker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[#FFFBF0] p-6 shadow-xl border border-orange-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-800">
+                {editingEntry ? 'Edit Entry' : 'Add Entry'}
+              </h2>
+              <button
+                onClick={handleCloseEntryModal}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Previous Balance
+                </label>
+                <div className="w-full rounded-lg bg-blue-50 px-3 py-2 text-gray-700 border border-blue-100">
+                  KSh {prevBalanceForEntry.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={newEntry.date}
+                  onChange={(e) => setNewEntry({ ...newEntry, date: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Day</label>
+                <div className="w-full rounded-lg bg-blue-50 px-3 py-2 text-gray-700 border border-blue-100">
+                  {getDayName(newEntry.date) || 'Select Date'}
+                </div>
+              </div>
+
+              {/* Bottles - WHOLE NUMBERS ONLY */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bottles Taken (ref)
+                </label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={newEntry.bottles}
+                  onChange={(e) => setNewEntry({ ...newEntry, bottles: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Amount - MONEY (allow decimals) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount (KSh) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newEntry.amount}
+                  onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="0.00"
+                />
+              </div>
+
+              {/* Paid - MONEY (allow decimals) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount Paid (KSh)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newEntry.paid}
+                  onChange={(e) => setNewEntry({ ...newEntry, paid: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="rounded-lg bg-green-50 p-4 border border-green-200">
+                <p className="text-xs text-gray-500">New Balance (Live Preview)</p>
+                <p className="text-2xl font-bold text-green-700">
+                  KSh {liveNewBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {prevBalanceForEntry.toFixed(2)} + {newEntry.amount} - {newEntry.paid}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleAddEntry}
+              disabled={!newEntry.date || !newEntry.amount}
+              className="mt-6 w-full rounded-lg bg-orange-600 px-4 py-3 font-semibold text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {editingEntry ? 'Update Entry' : 'Submit'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Statement Modal */}
+      {isStatementOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-800">Statement Preview</h2>
+              <button
+                onClick={() => setIsStatementOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <textarea
+              readOnly
+              value={statementText}
+              className="w-full h-48 rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs text-gray-700 focus:outline-none resize-none"
+            />
+
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setIsStatementOpen(false)}
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                onClick={sendWhatsApp}
+                className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 font-semibold text-white hover:bg-green-700"
+              >
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+                Send WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-10px); }
