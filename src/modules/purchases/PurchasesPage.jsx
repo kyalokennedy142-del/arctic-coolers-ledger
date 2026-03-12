@@ -434,18 +434,19 @@ const PurchasesPage = () => {
                             placeholder="0"
                           />
                         </div>
-                        <div className="col-span-1 md:col-span-3">
-                          <label className="md:hidden text-xs text-gray-500 mb-1 block">Amount (KSH)</label>
-                          <input
-                            type="number"
-                            step="0.01"  // ← MONEY: allow decimals
-                            min="0"
-                            value={row.amount}
-                            onChange={(e) => handleRowChange(row.id, 'amount', e.target.value)}
-                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            placeholder="0"
-                          />
-                        </div>
+                        {/* Amount - MONEY (allow decimals) */}
+<div className="col-span-1 md:col-span-3">
+  <label className="md:hidden text-xs text-gray-500 mb-1 block">Amount (KSH)</label>
+  <input
+    type="number"
+    step="0.01"        // ✅ 2 decimal places for money
+    min="0"
+    value={row.amount}
+    onChange={(e) => handleRowChange(row.id, 'amount', e.target.value)}
+    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+    placeholder="0.00"
+  />
+</div>
                         <div className="col-span-1 md:col-span-1 flex justify-end">
                           {rows.length > 1 && (
                             <button

@@ -1,283 +1,13 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 // ============================================
-// 1. INITIAL STATE
-// ============================================
-const initialState = {
-  customers: [],
-  brokers: [],
-  purchases: [],
-};
-
-// ============================================
-// 2. LOCALSTORAGE HELPERS
-// ============================================
-const loadState = () => {
-  try {
-    const savedState = localStorage.getItem('aquaLedgerState');
-    if (savedState) {
-      return JSON.parse(savedState);
-    }
-  } catch (error) {
-    console.error('Error loading state from localStorage:', error);
-  }
-  return initialState;
-};
-
-const saveState = (state) => {
-  try {
-    localStorage.setItem('aquaLedgerState', JSON.stringify(state));
-  } catch (error) {
-    console.error('Error saving state to localStorage:', error);
-  }
-};
-
-// ============================================
-// 3. ACTION TYPES
-// ============================================
-const ActionTypes = {
-  ADD_CUSTOMER: 'ADD_CUSTOMER',
-  UPDATE_CUSTOMER: 'UPDATE_CUSTOMER',
-  DELETE_CUSTOMER: 'DELETE_CUSTOMER',
-  ADD_TRANSACTION: 'ADD_TRANSACTION',
-  UPDATE_TRANSACTION: 'UPDATE_TRANSACTION',
-  DELETE_TRANSACTION: 'DELETE_TRANSACTION',
-  ADD_BROKER: 'ADD_BROKER',
-  UPDATE_BROKER: 'UPDATE_BROKER',
-  DELETE_BROKER: 'DELETE_BROKER',
-  ADD_ENTRY: 'ADD_ENTRY',
-  UPDATE_ENTRY: 'UPDATE_ENTRY',
-  DELETE_ENTRY: 'DELETE_ENTRY',
-  ADD_PURCHASE: 'ADD_PURCHASE',
-  UPDATE_PURCHASE: 'UPDATE_PURCHASE',
-  DELETE_PURCHASE: 'DELETE_PURCHASE',
-};
-
-// ============================================
-// 4. REDUCER FUNCTION
-// ============================================
-function dataReducer(state, action) {
-  let newState;
-
-  switch (action.type) {
-    // ==================== CUSTOMERS ====================
-    case ActionTypes.ADD_CUSTOMER:
-      newState = {
-        ...state,
-        customers: [
-          ...state.customers,
-          { ...action.payload, id: Date.now(), transactions: [] },
-        ],
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.UPDATE_CUSTOMER:
-      newState = {
-        ...state,
-        customers: state.customers.map((customer) =>
-          customer.id === action.payload.id
-            ? { ...customer, ...action.payload }
-            : customer
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.DELETE_CUSTOMER:
-      newState = {
-        ...state,
-        customers: state.customers.filter(
-          (customer) => customer.id !== action.payload
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.ADD_TRANSACTION:
-      newState = {
-        ...state,
-        customers: state.customers.map((customer) =>
-          customer.id === action.payload.customerId
-            ? {
-                ...customer,
-                transactions: [
-                  { ...action.payload.transaction, id: Date.now() },
-                  ...customer.transactions,
-                ],
-              }
-            : customer
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.UPDATE_TRANSACTION:
-      newState = {
-        ...state,
-        customers: state.customers.map((customer) =>
-          customer.id === action.payload.customerId
-            ? {
-                ...customer,
-                transactions: customer.transactions.map((t) =>
-                  t.id === action.payload.transactionId
-                    ? { ...t, ...action.payload.transaction }
-                    : t
-                ),
-              }
-            : customer
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.DELETE_TRANSACTION:
-      newState = {
-        ...state,
-        customers: state.customers.map((customer) =>
-          customer.id === action.payload.customerId
-            ? {
-                ...customer,
-                transactions: customer.transactions.filter(
-                  (t) => t.id !== action.payload.transactionId
-                ),
-              }
-            : customer
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    // ==================== BROKERS ====================
-    case ActionTypes.ADD_BROKER:
-      newState = {
-        ...state,
-        brokers: [
-          ...state.brokers,
-          { ...action.payload, id: Date.now(), entries: [] },
-        ],
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.UPDATE_BROKER:
-      newState = {
-        ...state,
-        brokers: state.brokers.map((broker) =>
-          broker.id === action.payload.id
-            ? { ...broker, ...action.payload }
-            : broker
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.DELETE_BROKER:
-      newState = {
-        ...state,
-        brokers: state.brokers.filter((broker) => broker.id !== action.payload),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.ADD_ENTRY:
-      newState = {
-        ...state,
-        brokers: state.brokers.map((broker) =>
-          broker.id === action.payload.brokerId
-            ? {
-                ...broker,
-                entries: [
-                  ...broker.entries,
-                  { ...action.payload.entry, id: Date.now() },
-                ],
-              }
-            : broker
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.UPDATE_ENTRY:
-      newState = {
-        ...state,
-        brokers: state.brokers.map((broker) =>
-          broker.id === action.payload.brokerId
-            ? {
-                ...broker,
-                entries: broker.entries.map((e) =>
-                  e.id === action.payload.entryId
-                    ? { ...e, ...action.payload.entry }
-                    : e
-                ),
-              }
-            : broker
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.DELETE_ENTRY:
-      newState = {
-        ...state,
-        brokers: state.brokers.map((broker) =>
-          broker.id === action.payload.brokerId
-            ? {
-                ...broker,
-                entries: broker.entries.filter(
-                  (e) => e.id !== action.payload.entryId
-                ),
-              }
-            : broker
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    // ==================== PURCHASES ====================
-    case ActionTypes.ADD_PURCHASE:
-      newState = {
-        ...state,
-        purchases: [{ ...action.payload, id: Date.now() }, ...state.purchases],
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.UPDATE_PURCHASE:
-      newState = {
-        ...state,
-        purchases: state.purchases.map((purchase) =>
-          purchase.id === action.payload.id
-            ? { ...purchase, ...action.payload }
-            : purchase
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    case ActionTypes.DELETE_PURCHASE:
-      newState = {
-        ...state,
-        purchases: state.purchases.filter(
-          (purchase) => purchase.id !== action.payload
-        ),
-      };
-      saveState(newState);
-      return newState;
-
-    // ==================== DEFAULT ====================
-    default:
-      return state;
-  }
-}
-
-// ============================================
-// 5. CREATE CONTEXT
+// 1. CREATE CONTEXT
 // ============================================
 const DataContext = createContext(null);
 
 // ============================================
-// 6. CUSTOM HOOK
+// 2. CUSTOM HOOK
 // ============================================
 export const useData = () => {
   const context = useContext(DataContext);
@@ -288,96 +18,419 @@ export const useData = () => {
 };
 
 // ============================================
-// 7. PROVIDER COMPONENT
+// 3. PROVIDER COMPONENT
 // ============================================
 export function DataProvider({ children }) {
-  const [state, dispatch] = useReducer(dataReducer, null, loadState);
+  const [loading, setLoading] = useState(true);
+  const [customers, setCustomers] = useState([]);
+  const [brokers, setBrokers] = useState([]);
+  const [purchases, setPurchases] = useState([]);
 
-  // ==================== CUSTOMER ACTIONS ====================
-  const addCustomer = (customer) => {
-    dispatch({ type: ActionTypes.ADD_CUSTOMER, payload: customer });
+  // ============================================
+  // LOAD DATA FROM SUPABASE ON MOUNT
+  // ============================================
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      // Load Customers with Transactions
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('*, transactions(*)')
+        .order('created_at', { ascending: false });
+
+      // Load Brokers with Entries
+      const { data: brokersData, error: brokersError } = await supabase
+        .from('brokers')
+        .select('*, broker_entries(*)')
+        .order('created_at', { ascending: false });
+
+      // Load Purchases with Items
+      const { data: purchasesData, error: purchasesError } = await supabase
+        .from('purchases')
+        .select('*, purchase_items(*)')
+        .order('created_at', { ascending: false });
+
+      if (customersError) throw customersError;
+      if (brokersError) throw brokersError;
+      if (purchasesError) throw purchasesError;
+
+      // Transform data to match app structure
+      setCustomers(customersData || []);
+      setBrokers(brokersData || []);
+      setPurchases(purchasesData || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateCustomer = (customer) => {
-    dispatch({ type: ActionTypes.UPDATE_CUSTOMER, payload: customer });
+  // ============================================
+  // CUSTOMER ACTIONS
+  // ============================================
+  const addCustomer = async (customer) => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert([{
+          name: customer.name,
+          phone: customer.phone,
+          location: customer.location,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setCustomers([data, ...customers]);
+    } catch (error) {
+      console.error('Error adding customer:', error);
+    }
   };
 
-  const deleteCustomer = (customerId) => {
-    dispatch({ type: ActionTypes.DELETE_CUSTOMER, payload: customerId });
+  const updateCustomer = async (customer) => {
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: customer.name,
+          phone: customer.phone,
+          location: customer.location
+        })
+        .eq('id', customer.id);
+
+      if (error) throw error;
+      setCustomers(customers.map(c => c.id === customer.id ? { ...c, ...customer } : c));
+    } catch (error) {
+      console.error('Error updating customer:', error);
+    }
   };
 
-  const addTransaction = (customerId, transaction) => {
-    dispatch({
-      type: ActionTypes.ADD_TRANSACTION,
-      payload: { customerId, transaction },
-    });
+  const deleteCustomer = async (customerId) => {
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerId);
+
+      if (error) throw error;
+      setCustomers(customers.filter(c => c.id !== customerId));
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+    }
   };
 
-  const updateTransaction = (customerId, transactionId, transaction) => {
-    dispatch({
-      type: ActionTypes.UPDATE_TRANSACTION,
-      payload: { customerId, transactionId, transaction },
-    });
+  const addTransaction = async (customerId, transaction) => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([{
+          customer_id: customerId,
+          type: transaction.type,
+          amount: transaction.type === 'Credit' ? transaction.amount : null,
+          paid: transaction.type === 'Payment' ? transaction.paid : null,
+          notes: transaction.notes,
+          date: transaction.date,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      setCustomers(customers.map(c => 
+        c.id === customerId 
+          ? { ...c, transactions: [data, ...c.transactions] }
+          : c
+      ));
+    } catch (error) {
+      console.error('Error adding transaction:', error);
+    }
   };
 
-  const deleteTransaction = (customerId, transactionId) => {
-    dispatch({
-      type: ActionTypes.DELETE_TRANSACTION,
-      payload: { customerId, transactionId },
-    });
+  const updateTransaction = async (customerId, transactionId, transaction) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          type: transaction.type,
+          amount: transaction.type === 'Credit' ? transaction.amount : null,
+          paid: transaction.type === 'Payment' ? transaction.paid : null,
+          notes: transaction.notes,
+          date: transaction.date
+        })
+        .eq('id', transactionId);
+
+      if (error) throw error;
+      
+      setCustomers(customers.map(c => 
+        c.id === customerId 
+          ? { 
+              ...c, 
+              transactions: c.transactions.map(t => 
+                t.id === transactionId ? { ...t, ...transaction } : t
+              )
+            }
+          : c
+      ));
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+    }
   };
 
-  // ==================== BROKER ACTIONS ====================
-  const addBroker = (broker) => {
-    dispatch({ type: ActionTypes.ADD_BROKER, payload: broker });
+  const deleteTransaction = async (customerId, transactionId) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId);
+
+      if (error) throw error;
+      
+      setCustomers(customers.map(c => 
+        c.id === customerId 
+          ? { 
+              ...c, 
+              transactions: c.transactions.filter(t => t.id !== transactionId)
+            }
+          : c
+      ));
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+    }
   };
 
-  const updateBroker = (broker) => {
-    dispatch({ type: ActionTypes.UPDATE_BROKER, payload: broker });
+  // ============================================
+  // BROKER ACTIONS
+  // ============================================
+  const addBroker = async (broker) => {
+    try {
+      const { data, error } = await supabase
+        .from('brokers')
+        .insert([{
+          name: broker.name,
+          phone: broker.phone,
+          area: broker.area,
+          opening_balance: broker.openingBalance,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      setBrokers([...brokers, data]);
+    } catch (error) {
+      console.error('Error adding broker:', error);
+    }
   };
 
-  const deleteBroker = (brokerId) => {
-    dispatch({ type: ActionTypes.DELETE_BROKER, payload: brokerId });
+  const updateBroker = async (broker) => {
+    try {
+      const { error } = await supabase
+        .from('brokers')
+        .update({
+          name: broker.name,
+          phone: broker.phone,
+          area: broker.area,
+          opening_balance: broker.openingBalance
+        })
+        .eq('id', broker.id);
+
+      if (error) throw error;
+      setBrokers(brokers.map(b => b.id === broker.id ? { ...b, ...broker } : b));
+    } catch (error) {
+      console.error('Error updating broker:', error);
+    }
   };
 
-  const addEntry = (brokerId, entry) => {
-    dispatch({ type: ActionTypes.ADD_ENTRY, payload: { brokerId, entry } });
+  const deleteBroker = async (brokerId) => {
+    try {
+      const { error } = await supabase
+        .from('brokers')
+        .delete()
+        .eq('id', brokerId);
+
+      if (error) throw error;
+      setBrokers(brokers.filter(b => b.id !== brokerId));
+    } catch (error) {
+      console.error('Error deleting broker:', error);
+    }
   };
 
-  const updateEntry = (brokerId, entryId, entry) => {
-    dispatch({
-      type: ActionTypes.UPDATE_ENTRY,
-      payload: { brokerId, entryId, entry },
-    });
+  const addEntry = async (brokerId, entry) => {
+    try {
+      const { data, error } = await supabase
+        .from('broker_entries')
+        .insert([{
+          broker_id: brokerId,
+          date: entry.date,
+          day: entry.day,
+          bottles: entry.bottles,
+          amount: entry.amount,
+          paid: entry.paid,
+          balance: entry.balance,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      setBrokers(brokers.map(b => 
+        b.id === brokerId 
+          ? { ...b, broker_entries: [...b.broker_entries, data] }
+          : b
+      ));
+    } catch (error) {
+      console.error('Error adding entry:', error);
+    }
   };
 
-  const deleteEntry = (brokerId, entryId) => {
-    dispatch({
-      type: ActionTypes.DELETE_ENTRY,
-      payload: { brokerId, entryId },
-    });
+  const updateEntry = async (brokerId, entryId, entry) => {
+    try {
+      const { error } = await supabase
+        .from('broker_entries')
+        .update({
+          date: entry.date,
+          day: entry.day,
+          bottles: entry.bottles,
+          amount: entry.amount,
+          paid: entry.paid,
+          balance: entry.balance
+        })
+        .eq('id', entryId);
+
+      if (error) throw error;
+      
+      setBrokers(brokers.map(b => 
+        b.id === brokerId 
+          ? { 
+              ...b, 
+              broker_entries: b.broker_entries.map(e => 
+                e.id === entryId ? { ...e, ...entry } : e
+              )
+            }
+          : b
+      ));
+    } catch (error) {
+      console.error('Error updating entry:', error);
+    }
   };
 
-  // ==================== PURCHASE ACTIONS ====================
-  const addPurchase = (purchase) => {
-    dispatch({ type: ActionTypes.ADD_PURCHASE, payload: purchase });
+  const deleteEntry = async (brokerId, entryId) => {
+    try {
+      const { error } = await supabase
+        .from('broker_entries')
+        .delete()
+        .eq('id', entryId);
+
+      if (error) throw error;
+      
+      setBrokers(brokers.map(b => 
+        b.id === brokerId 
+          ? { 
+              ...b, 
+              broker_entries: b.broker_entries.filter(e => e.id !== entryId)
+            }
+          : b
+      ));
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+    }
   };
 
-  const updatePurchase = (purchase) => {
-    dispatch({ type: ActionTypes.UPDATE_PURCHASE, payload: purchase });
+  // ============================================
+  // PURCHASE ACTIONS
+  // ============================================
+  const addPurchase = async (purchase) => {
+    try {
+      // Insert purchase
+      const { data: purchaseData, error: purchaseError } = await supabase
+        .from('purchases')
+        .insert([{
+          date: purchase.date,
+          company: purchase.company,
+          agent: purchase.agent,
+          transport_cost: purchase.transportCost,
+          total_expenditure: purchase.totalExpenditure,
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (purchaseError) throw purchaseError;
+
+      // Insert items
+      if (purchase.items && purchase.items.length > 0) {
+        const itemsToInsert = purchase.items.map(item => ({
+          purchase_id: purchaseData.id,
+          product_type: item.productType,
+          quantity: item.quantity,
+          amount: item.amount,
+          created_at: new Date().toISOString()
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('purchase_items')
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+      }
+
+      setPurchases([purchaseData, ...purchases]);
+    } catch (error) {
+      console.error('Error adding purchase:', error);
+    }
   };
 
-  const deletePurchase = (purchaseId) => {
-    dispatch({ type: ActionTypes.DELETE_PURCHASE, payload: purchaseId });
+  const updatePurchase = async (purchase) => {
+    try {
+      const { error } = await supabase
+        .from('purchases')
+        .update({
+          date: purchase.date,
+          company: purchase.company,
+          agent: purchase.agent,
+          transport_cost: purchase.transportCost,
+          total_expenditure: purchase.totalExpenditure
+        })
+        .eq('id', purchase.id);
+
+      if (error) throw error;
+      setPurchases(purchases.map(p => p.id === purchase.id ? { ...p, ...purchase } : p));
+    } catch (error) {
+      console.error('Error updating purchase:', error);
+    }
   };
 
-  // ==================== HELPER FUNCTIONS ====================
+  const deletePurchase = async (purchaseId) => {
+    try {
+      const { error } = await supabase
+        .from('purchases')
+        .delete()
+        .eq('id', purchaseId);
+
+      if (error) throw error;
+      setPurchases(purchases.filter(p => p.id !== purchaseId));
+    } catch (error) {
+      console.error('Error deleting purchase:', error);
+    }
+  };
+
+  // ============================================
+  // HELPER FUNCTIONS
+  // ============================================
   const getCustomerById = (customerId) => {
-    return state.customers.find((c) => c.id === customerId);
+    return customers.find((c) => c.id === customerId);
   };
 
   const getBrokerById = (brokerId) => {
-    return state.brokers.find((b) => b.id === brokerId);
+    return brokers.find((b) => b.id === brokerId);
   };
 
   const calculateCustomerBalance = (customer) => {
@@ -393,35 +446,23 @@ export function DataProvider({ children }) {
 
   const calculateBrokerBalance = (broker) => {
     if (!broker) return 0;
-    if (broker.entries.length === 0) return broker.openingBalance || 0;
-    return broker.entries[broker.entries.length - 1].balance;
+    const entries = broker.broker_entries || broker.entries || [];
+    if (entries.length === 0) return broker.opening_balance || broker.openingBalance || 0;
+    return entries[entries.length - 1].balance;
   };
 
   const getStats = () => {
-    const totalCustomers = state.customers.length;
-
-    const totalCredit = state.customers.reduce((sum, c) => {
-      return (
-        sum +
-        c.transactions
-          .filter((t) => t.type === 'Credit')
-          .reduce((s, t) => s + (t.amount || 0), 0)
-      );
+    const totalCustomers = customers.length;
+    
+    const totalCredit = customers.reduce((sum, c) => {
+      return sum + (c.transactions || []).filter((t) => t.type === 'Credit').reduce((s, t) => s + (t.amount || 0), 0);
     }, 0);
-
-    const totalPaid = state.customers.reduce((sum, c) => {
-      return (
-        sum +
-        c.transactions
-          .filter((t) => t.type === 'Payment')
-          .reduce((s, t) => s + (t.paid || 0), 0)
-      );
+    
+    const totalPaid = customers.reduce((sum, c) => {
+      return sum + (c.transactions || []).filter((t) => t.type === 'Payment').reduce((s, t) => s + (t.paid || 0), 0);
     }, 0);
-
-    const totalPurchases = state.purchases.reduce(
-      (sum, p) => sum + (p.totalExpenditure || 0),
-      0
-    );
+    
+    const totalPurchases = purchases.reduce((sum, p) => sum + (p.total_expenditure || p.totalExpenditure || 0), 0);
     const outstandingBalance = totalCredit - totalPaid;
 
     return {
@@ -430,17 +471,20 @@ export function DataProvider({ children }) {
       totalPaid,
       totalPurchases,
       outstandingBalance,
-      totalBrokers: state.brokers.length,
+      totalBrokers: brokers.length,
     };
   };
 
-  // ==================== PROVIDE VALUE ====================
+  // ============================================
+  // PROVIDE VALUE
+  // ============================================
   const value = {
     // State
-    customers: state.customers,
-    brokers: state.brokers,
-    purchases: state.purchases,
-
+    customers,
+    brokers,
+    purchases,
+    loading,
+    
     // Customer Actions
     addCustomer,
     updateCustomer,
@@ -448,7 +492,7 @@ export function DataProvider({ children }) {
     addTransaction,
     updateTransaction,
     deleteTransaction,
-
+    
     // Broker Actions
     addBroker,
     updateBroker,
@@ -456,22 +500,25 @@ export function DataProvider({ children }) {
     addEntry,
     updateEntry,
     deleteEntry,
-
+    
     // Purchase Actions
     addPurchase,
     updatePurchase,
     deletePurchase,
-
+    
     // Helper Functions
     getCustomerById,
     getBrokerById,
     calculateCustomerBalance,
     calculateBrokerBalance,
     getStats,
+    refreshData: fetchData,
   };
 
   return (
-    <DataContext.Provider value={value}>{children}</DataContext.Provider>
+    <DataContext.Provider value={value}>
+      {children}
+    </DataContext.Provider>
   );
 }
 
