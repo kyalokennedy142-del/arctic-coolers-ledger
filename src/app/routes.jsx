@@ -47,6 +47,24 @@ const router = createBrowserRouter([
         path: "brokers",
         element: <BrokersPage />,
       },
+// Add to the routes array:
+{
+  path: "/debug-env",
+  element: (
+    <div style={{ padding: '20px', fontFamily: 'monospace' }}>
+      <h2>🔍 Environment Debug</h2>
+      <p><strong>Mode:</strong> {import.meta.env.MODE}</p>
+      <p><strong>VITE_SUPABASE_URL:</strong> {import.meta.env.VITE_SUPABASE_URL ? '✅ Set' : '❌ Missing'}</p>
+      <p><strong>VITE_SUPABASE_ANON_KEY:</strong> {import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Set (length: ' + import.meta.env.VITE_SUPABASE_ANON_KEY?.length + ')' : '❌ Missing'}</p>
+      <p><strong>VITE_APP_PASSWORD:</strong> {import.meta.env.VITE_APP_PASSWORD ? '✅ Set' : '❌ Missing'}</p>
+      <button onClick={() => console.log('🚀 Test log from debug page')}>
+        Click to test console.log
+      </button>
+    </div>
+  )
+}
+
+
     ],
   },
 ]);
