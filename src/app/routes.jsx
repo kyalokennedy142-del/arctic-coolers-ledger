@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import Layout from "./layout";
 import LoginPage from "../modules/auth/LoginPage";
 import AuthGuard from "../lib/AuthGuard";
+import TestSupabase from "../TestSupabase";  // ← Test component
 
 import DashboardPage from "../modules/dashboard/DashboardPage";
 import CustomersPage from "../modules/customers/CustomersPage";
@@ -9,13 +10,21 @@ import TransactionsPage from "../modules/transactions/TransactionsPage";
 import RemindersPage from "../modules/reminders/RemindersPage";
 import PurchasesPage from "../modules/purchases/PurchasesPage";
 import BrokersPage from "../modules/brokers/BrokersPage";
-import TestSupabase from '../TestSupabase';
 
 const router = createBrowserRouter([
+  // Login route
   {
     path: "/login",
     element: <LoginPage />,
   },
+  
+  // Test route (must be BEFORE Layout routes)
+  {
+    path: "/test-supabase",
+    element: <TestSupabase />,
+  },
+  
+  // Protected routes with Layout
   {
     path: "/",
     element: (
@@ -48,29 +57,6 @@ const router = createBrowserRouter([
         path: "brokers",
         element: <BrokersPage />,
       },
-      {
-        path: "/test-supabase",
-        element: <TestSupabase />,
-
-      },
-// Add to the routes array:
-{
-  path: "/debug-env",
-  element: (
-    <div style={{ padding: '20px', fontFamily: 'monospace' }}>
-      <h2>🔍 Environment Debug</h2>
-      <p><strong>Mode:</strong> {import.meta.env.MODE}</p>
-      <p><strong>VITE_SUPABASE_URL:</strong> {import.meta.env.VITE_SUPABASE_URL ? '✅ Set' : '❌ Missing'}</p>
-      <p><strong>VITE_SUPABASE_ANON_KEY:</strong> {import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Set (length: ' + import.meta.env.VITE_SUPABASE_ANON_KEY?.length + ')' : '❌ Missing'}</p>
-      <p><strong>VITE_APP_PASSWORD:</strong> {import.meta.env.VITE_APP_PASSWORD ? '✅ Set' : '❌ Missing'}</p>
-      <button onClick={() => console.log('🚀 Test log from debug page')}>
-        Click to test console.log
-      </button>
-    </div>
-  )
-}
-
-
     ],
   },
 ]);
