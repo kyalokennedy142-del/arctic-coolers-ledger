@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';  // ← ADDED
 
 const TransactionsPage = () => {
   const { 
@@ -18,7 +19,6 @@ const TransactionsPage = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
   
-  // Add/Edit Transaction Form State
   const [newTransaction, setNewTransaction] = useState({
     customerId: '',
     date: new Date().toISOString().split('T')[0],
@@ -28,7 +28,6 @@ const TransactionsPage = () => {
     notes: '',
   });
 
-  // Calculate totals for each customer
   const customersWithTotals = customers.map((customer) => {
     const totalCredit = customer.transactions
       .filter((t) => t.type === 'Credit')
@@ -46,7 +45,6 @@ const TransactionsPage = () => {
     };
   });
 
-  // Filter customers
   const filteredCustomers = customersWithTotals.filter((customer) => {
     const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.phone.includes(searchTerm);
@@ -61,9 +59,7 @@ const TransactionsPage = () => {
     return matchesSearch;
   });
 
-  // Open Add Transaction Modal
   const openAddTransaction = (customerId) => {
-    const customer = customers.find((c) => c.id === customerId);
     setSelectedCustomerId(customerId);
     setNewTransaction({
       customerId: customerId.toString(),
@@ -77,7 +73,6 @@ const TransactionsPage = () => {
     setIsAddTransactionOpen(true);
   };
 
-  // Open Edit Transaction Modal
   const openEditTransaction = (customerId, transaction) => {
     setSelectedCustomerId(customerId);
     setNewTransaction({
@@ -92,7 +87,6 @@ const TransactionsPage = () => {
     setIsAddTransactionOpen(true);
   };
 
-  // Close Modal
   const closeModal = () => {
     setIsAddTransactionOpen(false);
     setSelectedCustomerId(null);
@@ -107,11 +101,11 @@ const TransactionsPage = () => {
     });
   };
 
-  // Handle form submission
+  // ✅ FIXED: handleSubmit with toasts
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!newTransaction.customerId) {
-      alert('Please select a customer');
+      toast.error('Please select a customer');  // ← CHANGED from alert
       return;
     }
 
@@ -124,28 +118,28 @@ const TransactionsPage = () => {
     };
 
     if (editingTransaction) {
-      // Update existing transaction
       updateTransaction(
         Number(newTransaction.customerId),
         editingTransaction.id,
         transactionData
       );
+      toast.success('Transaction updated successfully!');  // ← ADDED
     } else {
-      // Add new transaction
       addTransaction(Number(newTransaction.customerId), transactionData);
+      toast.success('Transaction added successfully!');  // ← ADDED
     }
 
     closeModal();
   };
 
-  // Handle Delete Transaction
+  // ✅ FIXED: handleDeleteTransaction with toast
   const handleDeleteTransaction = (customerId, transactionId) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       deleteTransaction(customerId, transactionId);
+      toast.success('Transaction deleted');  // ← ADDED
     }
   };
 
-  // Format date for display
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', {
@@ -155,14 +149,11 @@ const TransactionsPage = () => {
     });
   };
 
-  // Navigate to Reminders page with customer data
   const handleViewStatement = (customer) => {
-    // Store customer ID in sessionStorage for Reminders page to use
     sessionStorage.setItem('selectedCustomerId', customer.id.toString());
     window.location.href = '/reminders';
   };
 
-  // Calculate grand totals
   const grandTotals = customers.reduce(
     (acc, customer) => {
       customer.transactions.forEach((t) => {
@@ -180,15 +171,21 @@ const TransactionsPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       
-      {/* Header */}
+      {/* Header with Back Button */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
         <div className="mx-auto max-w-5xl flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-800 transition-colors">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* ← BACK BUTTON TO DASHBOARD */}
+            <Link
+              to="/"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
+              Back to Dashboard
             </Link>
+            
             <div>
               <h1 className="text-xl font-bold text-gray-900">Credit Statements</h1>
               <p className="text-sm text-gray-500">View all transactions by customer</p>
@@ -214,12 +211,7 @@ const TransactionsPage = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
           {/* Search */}
           <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -233,12 +225,7 @@ const TransactionsPage = () => {
 
           {/* Date Filter */}
           <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <input
@@ -424,13 +411,8 @@ const TransactionsPage = () => {
       {/* Add/Edit Transaction Modal */}
       {isAddTransactionOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 transition-opacity"
-            onClick={closeModal}
-          />
+          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={closeModal} />
 
-          {/* Modal Content */}
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-xl">
               
@@ -513,13 +495,15 @@ const TransactionsPage = () => {
                   </div>
                 </div>
 
-                {/* Amount / Paid */}
+                {/* Amount / Paid - MONEY (allow decimals) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {newTransaction.type === 'Credit' ? 'Amount (KSh)' : 'Amount Paid (KSh)'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
+                    step="0.01"  // ← MONEY: allow decimals
+                    min="0"
                     value={newTransaction.type === 'Credit' ? newTransaction.amount : newTransaction.paid}
                     onChange={(e) => {
                       if (newTransaction.type === 'Credit') {
@@ -530,8 +514,6 @@ const TransactionsPage = () => {
                     }}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder="0.00"
-                    min="0"
-                    step="0.01"
                     required
                   />
                 </div>

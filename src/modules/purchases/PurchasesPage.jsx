@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';  // ← ADDED
 
 const PurchasesPage = () => {
   const { purchases, addPurchase, updatePurchase, deletePurchase } = useData();
@@ -8,7 +9,6 @@ const PurchasesPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState(null);
   
-  // Form State
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     agent: '',
@@ -20,11 +20,9 @@ const PurchasesPage = () => {
     { id: 1, productType: '300ml', quantity: 0, amount: 0 },
   ]);
 
-  // Calculations
   const productsTotal = rows.reduce((sum, row) => sum + Number(row.amount), 0);
   const totalExpenditure = productsTotal + Number(formData.transportCost);
 
-  // Handlers
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -48,9 +46,10 @@ const PurchasesPage = () => {
     setRows(rows.filter((row) => row.id !== id));
   };
 
+  // ✅ FIXED: handleSave with toasts
   const handleSave = () => {
     if (!formData.company) {
-      alert('Please select a company');
+      toast.error('Please select a company');  // ← CHANGED from alert
       return;
     }
 
@@ -70,11 +69,21 @@ const PurchasesPage = () => {
 
     if (editingPurchase) {
       updatePurchase({ ...purchaseData, id: editingPurchase.id });
+      toast.success('Purchase updated successfully!');  // ← ADDED
     } else {
       addPurchase(purchaseData);
+      toast.success('Purchase saved successfully!');  // ← ADDED
     }
 
     handleCloseForm();
+  };
+
+  // ✅ FIXED: handleDelete with toast
+  const handleDelete = (purchaseId) => {
+    if (window.confirm('Are you sure you want to delete this purchase?')) {
+      deletePurchase(purchaseId);
+      toast.success('Purchase deleted');  // ← ADDED
+    }
   };
 
   const handleEdit = (purchase) => {
@@ -94,12 +103,6 @@ const PurchasesPage = () => {
     setShowForm(true);
   };
 
-  const handleDelete = (purchaseId) => {
-    if (window.confirm('Are you sure you want to delete this purchase?')) {
-      deletePurchase(purchaseId);
-    }
-  };
-
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingPurchase(null);
@@ -113,13 +116,11 @@ const PurchasesPage = () => {
   };
 
   const toggleExpand = (purchaseId) => {
-    // For simplicity, we'll handle expand state locally in the rendered list
     setExpandedId(expandedId === purchaseId ? null : purchaseId);
   };
 
   const [expandedId, setExpandedId] = useState(null);
 
-  // Calculate stats
   const totalPurchases = purchases.length;
   const totalSpent = purchases.reduce((sum, p) => sum + (p.totalExpenditure || 0), 0);
   const totalTransport = purchases.reduce((sum, p) => sum + (p.transportCost || 0), 0);
@@ -127,15 +128,21 @@ const PurchasesPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       
-      {/* Header */}
+      {/* Header with Back Button */}
       <header className="bg-gradient-to-r from-orange-500 to-orange-400 px-6 py-8 text-white shadow-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/" className="rounded-full p-2 hover:bg-white/20 transition-colors">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* ← BACK BUTTON TO DASHBOARD */}
+            <Link
+              to="/"
+              className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
+              Back to Dashboard
             </Link>
+            
             <div>
               <h1 className="text-2xl font-bold">Purchases — Bottles</h1>
               <p className="text-orange-100 text-sm opacity-90">Track bottle procurement costs</p>
@@ -292,13 +299,8 @@ const PurchasesPage = () => {
       {/* Purchase Form Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 transition-opacity"
-            onClick={handleCloseForm}
-          />
+          <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={handleCloseForm} />
 
-          {/* Modal Content */}
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="relative w-full max-w-3xl rounded-2xl bg-white shadow-xl animate-slideUp">
               
@@ -378,6 +380,8 @@ const PurchasesPage = () => {
                       <input
                         type="number"
                         name="transportCost"
+                        step="0.01"  // ← MONEY: allow decimals
+                        min="0"
                         value={formData.transportCost}
                         onChange={handleFormChange}
                         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -422,6 +426,8 @@ const PurchasesPage = () => {
                           <label className="md:hidden text-xs text-gray-500 mb-1 block">Quantity</label>
                           <input
                             type="number"
+                            step="1"  // ← WHOLE NUMBERS ONLY
+                            min="0"
                             value={row.quantity}
                             onChange={(e) => handleRowChange(row.id, 'quantity', e.target.value)}
                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -432,6 +438,8 @@ const PurchasesPage = () => {
                           <label className="md:hidden text-xs text-gray-500 mb-1 block">Amount (KSH)</label>
                           <input
                             type="number"
+                            step="0.01"  // ← MONEY: allow decimals
+                            min="0"
                             value={row.amount}
                             onChange={(e) => handleRowChange(row.id, 'amount', e.target.value)}
                             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -506,18 +514,10 @@ const PurchasesPage = () => {
 
       <style>{`
         @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
-        }
+        .animate-slideUp { animation: slideUp 0.3s ease-out; }
       `}</style>
     </div>
   );
