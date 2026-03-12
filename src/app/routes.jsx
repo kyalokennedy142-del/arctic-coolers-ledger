@@ -1,7 +1,9 @@
 import { createBrowserRouter } from "react-router-dom";
 import Layout from "./layout";
+import LoginPage from "../modules/auth/LoginPage";
+import AuthGuard from "../lib/AuthGuard";
 
-import DashboardPage from "../modules/dashboard/DashboardPagetemp";
+import DashboardPage from "../modules/dashboard/DashboardPage";
 import CustomersPage from "../modules/customers/CustomersPage";
 import TransactionsPage from "../modules/transactions/TransactionsPage";
 import RemindersPage from "../modules/reminders/RemindersPage";
@@ -10,8 +12,16 @@ import BrokersPage from "../modules/brokers/BrokersPage";
 
 const router = createBrowserRouter([
   {
+    path: "/login",
+    element: <LoginPage />,
+  },
+  {
     path: "/",
-    element: <Layout />,
+    element: (
+      <AuthGuard>
+        <Layout />
+      </AuthGuard>
+    ),
     children: [
       {
         index: true,
