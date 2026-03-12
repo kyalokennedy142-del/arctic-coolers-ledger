@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';  // ← ADDED
+import toast from 'react-hot-toast';
 
 const BrokersPage = () => {
   const { 
@@ -36,16 +36,16 @@ const BrokersPage = () => {
   // ✅ FIXED: handleAddBroker with toast
   const handleAddBroker = () => {
     if (!newBroker.name) {
-      toast.error('Name is required');  // ← CHANGED from alert
+      toast.error('Name is required');
       return;
     }
     addBroker({
       name: newBroker.name,
       phone: newBroker.phone,
       area: newBroker.area,
-      openingBalance: Number(newBroker.openingBalance),
+      openingBalance: Number(newBroker.openingBalance) || 0,
     });
-    toast.success('Broker added successfully!');  // ← ADDED
+    toast.success('Broker added!');
     setIsAddBrokerOpen(false);
     setNewBroker({ name: '', phone: '', area: '', openingBalance: 0 });
   };
@@ -56,14 +56,14 @@ const BrokersPage = () => {
     if (!broker) return;
 
     const prevBalance = calculateBrokerBalance(broker);
-    const amount = Number(newEntry.amount);
-    const paid = Number(newEntry.paid);
+    const amount = Number(newEntry.amount) || 0;
+    const paid = Number(newEntry.paid) || 0;
     const newBalance = prevBalance + amount - paid;
 
     const entryData = {
       date: newEntry.date,
       day: getDayName(newEntry.date),
-      bottles: Number(newEntry.bottles),
+      bottles: Number(newEntry.bottles) || 0,
       amount: amount,
       paid: paid,
       balance: newBalance,
@@ -71,10 +71,10 @@ const BrokersPage = () => {
 
     if (editingEntry) {
       updateEntry(broker.id, editingEntry.id, entryData);
-      toast.success('Entry updated successfully!');  // ← ADDED
+      toast.success('Entry updated!');
     } else {
       addEntry(broker.id, entryData);
-      toast.success('Entry added successfully!');  // ← ADDED
+      toast.success('Entry added!');
     }
 
     setIsAddEntryOpen(false);
@@ -95,17 +95,17 @@ const BrokersPage = () => {
 
   // ✅ FIXED: handleDeleteEntry with toast
   const handleDeleteEntry = (brokerId, entryId) => {
-    if (window.confirm('Are you sure you want to delete this entry?')) {
+    if (window.confirm('Delete this entry?')) {
       deleteEntry(brokerId, entryId);
-      toast.success('Entry deleted');  // ← ADDED
+      toast.success('Entry deleted');
     }
   };
 
   // ✅ FIXED: handleDeleteBroker with toast
   const handleDeleteBroker = (brokerId) => {
-    if (window.confirm('Are you sure you want to delete this broker? All their entries will also be deleted.')) {
+    if (window.confirm('Delete this broker? All entries will be deleted.')) {
       deleteBroker(brokerId);
-      toast.success('Broker deleted');  // ← ADDED
+      toast.success('Broker deleted');
       if (expandedBrokerId === brokerId) {
         setExpandedBrokerId(null);
       }
@@ -120,25 +120,25 @@ const BrokersPage = () => {
     text += `Date | Day | Bottles | Amount | Paid | Balance\n`;
     text += `---------------------------------------------\n`;
     
-    broker.entries.forEach((entry) => {
-      text += `${entry.date} | ${entry.day.substring(0, 3)} | ${entry.bottles} | ${entry.amount} | ${entry.paid} | ${entry.balance}\n`;
+    (broker.entries || []).forEach((entry) => {
+      text += `${entry.date} | ${entry.day?.substring(0, 3) || ''} | ${entry.bottles || 0} | ${(entry.amount || 0).toFixed(2)} | ${(entry.paid || 0).toFixed(2)} | ${(entry.balance || 0).toFixed(2)}\n`;
     });
 
     const currentBalance = calculateBrokerBalance(broker);
     text += `---------------------------------------------\n`;
-    text += `TOTAL BALANCE: KSh ${currentBalance.toFixed(2)}`;
+    text += `TOTAL BALANCE: KSh ${(currentBalance || 0).toFixed(2)}`;
 
     setStatementText(text);
     setIsStatementOpen(true);
   };
 
-  // ✅ FIXED: WhatsApp URL (removed space)
+  // ✅ FIXED: WhatsApp URL (no space)
   const sendWhatsApp = () => {
     const broker = getExpandedBroker();
     if (!broker) return;
     const encodedText = encodeURIComponent(statementText);
-    const cleanPhone = broker.phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');  // ← FIXED: no space
+    const cleanPhone = broker.phone?.replace(/\D/g, '') || '';
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
   };
 
   const handleCloseEntryModal = () => {
@@ -153,10 +153,10 @@ const BrokersPage = () => {
   let prevBalanceForEntry = 0;
   if (expandedBroker) {
     if (editingEntry) {
-      const entries = expandedBroker.entries;
+      const entries = expandedBroker.entries || [];
       const idx = entries.findIndex((e) => e.id === editingEntry.id);
       if (idx > 0 && idx < entries.length) {
-        prevBalanceForEntry = entries[idx - 1].balance;
+        prevBalanceForEntry = entries[idx - 1]?.balance || 0;
       } else {
         prevBalanceForEntry = expandedBroker.openingBalance || 0;
       }
@@ -165,11 +165,12 @@ const BrokersPage = () => {
     }
   }
 
-  const liveNewBalance = prevBalanceForEntry + Number(newEntry.amount) - Number(newEntry.paid);
+  const liveNewBalance = prevBalanceForEntry + Number(newEntry.amount || 0) - Number(newEntry.paid || 0);
 
-  const totalBrokers = brokers.length;
-  const totalOutstanding = brokers.reduce((sum, b) => sum + calculateBrokerBalance(b), 0);
-  const brokersWithBalance = brokers.filter((b) => calculateBrokerBalance(b) > 0).length;
+  // ✅ SAFE: Stats calculations
+  const totalBrokers = brokers?.length || 0;
+  const totalOutstanding = brokers?.reduce((sum, b) => sum + calculateBrokerBalance(b), 0) || 0;
+  const brokersWithBalance = brokers?.filter((b) => calculateBrokerBalance(b) > 0).length || 0;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
@@ -178,6 +179,7 @@ const BrokersPage = () => {
       <header className="bg-orange-600 px-6 py-6 text-white shadow-md sticky top-0 z-30">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-4">
+            {/* ← BACK BUTTON TO DASHBOARD */}
             <Link
               to="/"
               className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
@@ -221,7 +223,9 @@ const BrokersPage = () => {
           </div>
           <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
             <p className="text-sm font-medium text-gray-500">Total Outstanding</p>
-            <p className="mt-1 text-2xl font-bold text-red-600">KSh {totalOutstanding.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p className="mt-1 text-2xl font-bold text-red-600">
+              KSh {(totalOutstanding || 0).toFixed(2)}
+            </p>
           </div>
           <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
             <p className="text-sm font-medium text-gray-500">With Balance</p>
@@ -230,12 +234,9 @@ const BrokersPage = () => {
         </div>
 
         {/* Broker List */}
-        {brokers.length === 0 ? (
+        {brokers?.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl shadow-sm ring-1 ring-gray-100">
-            <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <p className="mt-4 text-gray-500">No brokers yet</p>
+            <p className="text-gray-500">No brokers yet</p>
             <button
               onClick={() => setIsAddBrokerOpen(true)}
               className="mt-4 text-orange-600 font-medium hover:text-orange-700"
@@ -269,8 +270,9 @@ const BrokersPage = () => {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-xs text-gray-400 uppercase font-medium">Balance</p>
+                      {/* ✅ SAFE: Handle undefined balance */}
                       <p className={`text-xl font-bold ${balance > 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                        KSh {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        KSh {(balance || 0).toFixed(2)}
                       </p>
                     </div>
                     <button
@@ -333,26 +335,29 @@ const BrokersPage = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                          {broker.entries.length === 0 ? (
+                          {(broker.entries || []).length === 0 ? (
                             <tr>
                               <td colSpan="7" className="px-4 py-8 text-center text-gray-400">
                                 No entries yet
                               </td>
                             </tr>
                           ) : (
-                            broker.entries.map((entry) => (
+                            (broker.entries || []).map((entry) => (
                               <tr key={entry.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-3 whitespace-nowrap">{entry.date}</td>
                                 <td className="px-4 py-3">{entry.day}</td>
-                                <td className="px-4 py-3 text-right font-medium">{entry.bottles}</td>
+                                <td className="px-4 py-3 text-right font-medium">{entry.bottles || 0}</td>
                                 <td className="px-4 py-3 text-right text-blue-600">
-                                  KSh {entry.amount.toFixed(2)}
+                                  {/* ✅ SAFE: Handle undefined amount */}
+                                  KSh {(entry.amount || 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3 text-right text-green-600">
-                                  KSh {entry.paid.toFixed(2)}
+                                  {/* ✅ SAFE: Handle undefined paid */}
+                                  KSh {(entry.paid || 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3 text-right font-bold text-gray-800">
-                                  KSh {entry.balance.toFixed(2)}
+                                  {/* ✅ SAFE: Handle undefined balance */}
+                                  KSh {(entry.balance || 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center justify-center gap-2">
@@ -443,6 +448,7 @@ const BrokersPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Opening Balance (KSh)
                 </label>
+                {/* ✅ MONEY: Allow decimals */}
                 <input
                   type="number"
                   step="0.01"
@@ -497,7 +503,7 @@ const BrokersPage = () => {
                   Previous Balance
                 </label>
                 <div className="w-full rounded-lg bg-blue-50 px-3 py-2 text-gray-700 border border-blue-100">
-                  KSh {prevBalanceForEntry.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                  KSh {(prevBalanceForEntry || 0).toFixed(2)}
                 </div>
               </div>
 
@@ -527,7 +533,7 @@ const BrokersPage = () => {
                 </label>
                 <input
                   type="number"
-                  step="1"
+                  step="1"           // ✅ Only whole numbers
                   min="0"
                   value={newEntry.bottles}
                   onChange={(e) => setNewEntry({ ...newEntry, bottles: e.target.value })}
@@ -543,7 +549,7 @@ const BrokersPage = () => {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.01"        // ✅ 2 decimal places for money
                   min="0"
                   value={newEntry.amount}
                   onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })}
@@ -571,10 +577,10 @@ const BrokersPage = () => {
               <div className="rounded-lg bg-green-50 p-4 border border-green-200">
                 <p className="text-xs text-gray-500">New Balance (Live Preview)</p>
                 <p className="text-2xl font-bold text-green-700">
-                  KSh {liveNewBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  KSh {(liveNewBalance || 0).toFixed(2)}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {prevBalanceForEntry.toFixed(2)} + {newEntry.amount} - {newEntry.paid}
+                  {(prevBalanceForEntry || 0).toFixed(2)} + {(newEntry.amount || 0)} - {(newEntry.paid || 0)}
                 </p>
               </div>
             </div>

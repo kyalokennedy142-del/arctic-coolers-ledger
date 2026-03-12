@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';  // ← ADDED
+import toast from 'react-hot-toast';
 
 const TransactionsPage = () => {
   const { 
@@ -28,11 +28,12 @@ const TransactionsPage = () => {
     notes: '',
   });
 
-  const customersWithTotals = customers.map((customer) => {
-    const totalCredit = customer.transactions
+  // ✅ SAFE: Map customers with totals
+  const customersWithTotals = (customers || []).map((customer) => {
+    const totalCredit = (customer.transactions || [])
       .filter((t) => t.type === 'Credit')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
-    const totalPaid = customer.transactions
+    const totalPaid = (customer.transactions || [])
       .filter((t) => t.type === 'Payment')
       .reduce((sum, t) => sum + (t.paid || 0), 0);
     const balance = totalCredit - totalPaid;
@@ -45,12 +46,13 @@ const TransactionsPage = () => {
     };
   });
 
+  // ✅ SAFE: Filter customers with null checks
   const filteredCustomers = customersWithTotals.filter((customer) => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm);
+    const matchesSearch = customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customer.phone?.includes(searchTerm);
     
     if (dateFilter) {
-      const hasTransactionOnDate = customer.transactions.some(
+      const hasTransactionOnDate = (customer.transactions || []).some(
         (t) => t.date === dateFilter
       );
       return matchesSearch && hasTransactionOnDate;
@@ -105,15 +107,15 @@ const TransactionsPage = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!newTransaction.customerId) {
-      toast.error('Please select a customer');  // ← CHANGED from alert
+      toast.error('Please select a customer');
       return;
     }
 
     const transactionData = {
       date: newTransaction.date,
       type: newTransaction.type,
-      amount: newTransaction.type === 'Credit' ? Number(newTransaction.amount) : 0,
-      paid: newTransaction.type === 'Payment' ? Number(newTransaction.paid) : 0,
+      amount: newTransaction.type === 'Credit' ? Number(newTransaction.amount) || 0 : 0,
+      paid: newTransaction.type === 'Payment' ? Number(newTransaction.paid) || 0 : 0,
       notes: newTransaction.notes,
     };
 
@@ -123,10 +125,10 @@ const TransactionsPage = () => {
         editingTransaction.id,
         transactionData
       );
-      toast.success('Transaction updated successfully!');  // ← ADDED
+      toast.success('Transaction updated!');
     } else {
       addTransaction(Number(newTransaction.customerId), transactionData);
-      toast.success('Transaction added successfully!');  // ← ADDED
+      toast.success('Transaction added!');
     }
 
     closeModal();
@@ -134,13 +136,15 @@ const TransactionsPage = () => {
 
   // ✅ FIXED: handleDeleteTransaction with toast
   const handleDeleteTransaction = (customerId, transactionId) => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
+    if (window.confirm('Delete this transaction?')) {
       deleteTransaction(customerId, transactionId);
-      toast.success('Transaction deleted');  // ← ADDED
+      toast.success('Transaction deleted');
     }
   };
 
+  // ✅ SAFE: Format date
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -154,9 +158,10 @@ const TransactionsPage = () => {
     window.location.href = '/reminders';
   };
 
-  const grandTotals = customers.reduce(
+  // ✅ SAFE: Grand totals calculation
+  const grandTotals = (customers || []).reduce(
     (acc, customer) => {
-      customer.transactions.forEach((t) => {
+      (customer.transactions || []).forEach((t) => {
         if (t.type === 'Credit') {
           acc.totalCredit += t.amount || 0;
         } else {
@@ -241,11 +246,15 @@ const TransactionsPage = () => {
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-red-50 rounded-xl p-5 border border-red-100">
             <p className="text-xs font-medium text-red-600 uppercase">Total Credit</p>
-            <p className="mt-1 text-2xl font-bold text-red-600">KSh {grandTotals.totalCredit.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p className="mt-1 text-2xl font-bold text-red-600">
+              KSh {(grandTotals.totalCredit || 0).toFixed(2)}
+            </p>
           </div>
           <div className="bg-green-50 rounded-xl p-5 border border-green-100">
             <p className="text-xs font-medium text-green-600 uppercase">Total Paid</p>
-            <p className="mt-1 text-2xl font-bold text-green-600">KSh {grandTotals.totalPaid.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+            <p className="mt-1 text-2xl font-bold text-green-600">
+              KSh {(grandTotals.totalPaid || 0).toFixed(2)}
+            </p>
           </div>
         </div>
 
@@ -275,7 +284,7 @@ const TransactionsPage = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-semibold text-gray-900 text-lg">{customer.name}</h3>
-                      <p className="text-sm text-gray-500 mt-1">{customer.transactions.length} transactions</p>
+                      <p className="text-sm text-gray-500 mt-1">{(customer.transactions || []).length} transactions</p>
                     </div>
                     <button className="text-gray-400 hover:text-gray-600 transition-transform">
                       <svg 
@@ -293,11 +302,15 @@ const TransactionsPage = () => {
                   <div className="mt-4 grid grid-cols-2 gap-4">
                     <div className="bg-red-50 rounded-lg p-4 border border-red-100">
                       <p className="text-xs font-medium text-red-600 uppercase">Total Credit</p>
-                      <p className="mt-1 text-xl font-bold text-red-600">KSh {customer.totalCredit.toFixed(2)}</p>
+                      <p className="mt-1 text-xl font-bold text-red-600">
+                        KSh {(customer.totalCredit || 0).toFixed(2)}
+                      </p>
                     </div>
                     <div className="bg-green-50 rounded-lg p-4 border border-green-100">
                       <p className="text-xs font-medium text-green-600 uppercase">Total Paid</p>
-                      <p className="mt-1 text-xl font-bold text-green-600">KSh {customer.totalPaid.toFixed(2)}</p>
+                      <p className="mt-1 text-xl font-bold text-green-600">
+                        KSh {(customer.totalPaid || 0).toFixed(2)}
+                      </p>
                     </div>
                   </div>
 
@@ -333,14 +346,14 @@ const TransactionsPage = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
-                          {customer.transactions.length === 0 ? (
+                          {(customer.transactions || []).length === 0 ? (
                             <tr>
                               <td colSpan="5" className="px-4 py-8 text-center text-gray-400">
                                 No transactions yet
                               </td>
                             </tr>
                           ) : (
-                            customer.transactions.map((transaction) => (
+                            (customer.transactions || []).map((transaction) => (
                               <tr key={transaction.id} className="hover:bg-gray-50">
                                 <td className="px-4 py-3 whitespace-nowrap">{formatDate(transaction.date)}</td>
                                 <td className="px-4 py-3">
@@ -355,7 +368,8 @@ const TransactionsPage = () => {
                                 <td className={`px-4 py-3 text-right font-medium ${
                                   transaction.type === 'Credit' ? 'text-red-600' : 'text-green-600'
                                 }`}>
-                                  KSh {(transaction.type === 'Credit' ? transaction.amount : transaction.paid).toFixed(2)}
+                                  {/* ✅ SAFE: Handle undefined amount/paid */}
+                                  KSh {(transaction.type === 'Credit' ? transaction.amount : transaction.paid || 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3 text-gray-600">{transaction.notes || '-'}</td>
                                 <td className="px-4 py-3">
@@ -452,7 +466,7 @@ const TransactionsPage = () => {
                     required
                   >
                     <option value="">Select customer...</option>
-                    {customers.map((customer) => (
+                    {(customers || []).map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {customer.name}
                       </option>
@@ -502,7 +516,7 @@ const TransactionsPage = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.01"  // ← MONEY: allow decimals
+                    step="0.01"  // ✅ MONEY: allow decimals
                     min="0"
                     value={newTransaction.type === 'Credit' ? newTransaction.amount : newTransaction.paid}
                     onChange={(e) => {

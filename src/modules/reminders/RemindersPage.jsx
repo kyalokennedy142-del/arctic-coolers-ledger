@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';  // ← ADDED
+import toast from 'react-hot-toast';
 
 const RemindersPage = () => {
   const { 
@@ -17,7 +17,7 @@ const RemindersPage = () => {
   const [statementPreviews, setStatementPreviews] = useState({});
   const [selectedCustomerIdFromSession, setSelectedCustomerIdFromSession] = useState(null);
   
-  // ✅ Weekly Reminder Settings
+  // Weekly Reminder Settings
   const [weeklyReminders, setWeeklyReminders] = useState({
     enabled: false,
     day: 'monday',
@@ -47,15 +47,16 @@ const RemindersPage = () => {
     }
   }, []);
 
-  const customersWithBalance = customers.map((customer) => {
-    const totalCredit = customer.transactions
+  // ✅ SAFE: Map customers with balance calculations
+  const customersWithBalance = (customers || []).map((customer) => {
+    const totalCredit = (customer.transactions || [])
       .filter((t) => t.type === 'Credit')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
-    const totalPaid = customer.transactions
+    const totalPaid = (customer.transactions || [])
       .filter((t) => t.type === 'Payment')
       .reduce((sum, t) => sum + (t.paid || 0), 0);
     const outstandingBalance = totalCredit - totalPaid;
-    const lastTransaction = customer.transactions.length > 0 
+    const lastTransaction = (customer.transactions || []).length > 0 
       ? customer.transactions[0].date 
       : 'N/A';
 
@@ -71,10 +72,11 @@ const RemindersPage = () => {
 
   const customersWithOutstanding = customersWithBalance.filter((c) => c.hasOutstanding);
 
+  // ✅ SAFE: Filter customers with null checks
   const filteredCustomers = customersWithOutstanding.filter(
     (c) =>
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.phone.includes(searchTerm)
+      c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.phone?.includes(searchTerm)
   );
 
   const toggleCustomerSelection = (id) => {
@@ -91,7 +93,9 @@ const RemindersPage = () => {
     setSelectedCustomers([]);
   };
 
+  // ✅ SAFE: Format date
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -100,23 +104,24 @@ const RemindersPage = () => {
     });
   };
 
+  // ✅ SAFE: Generate statement with null checks
   const generateStatement = (customer) => {
-    const unpaidTransactions = customer.transactions
+    const unpaidTransactions = (customer.transactions || [])
       .filter((t) => t.type === 'Credit');
     
-    let statement = `Hello ${customer.name}, here we go\n\n`;
+    let statement = `Hello ${customer.name || 'Valued Customer'}, here we go\n\n`;
     statement += `TRANSACTION HISTORY\n`;
     statement += `Date        Amount (KSh)\n`;
     statement += `--------------------------------\n`;
     
     unpaidTransactions.forEach((t) => {
-      statement += `${formatDate(t.date)}        ${t.amount.toFixed(2)}\n`;
+      statement += `${formatDate(t.date)}        ${(t.amount || 0).toFixed(2)}\n`;
     });
 
-    statement += `\nTOTAL BALANCE: KSh ${customer.outstandingBalance.toFixed(2)}\n`;
+    statement += `\nTOTAL BALANCE: KSh ${(customer.outstandingBalance || 0).toFixed(2)}\n`;
     statement += `\nPAYMENT DETAILS\n`;
     statement += `Paybill: 247247\n`;
-    statement += `Account: ${customer.phone}\n`;
+    statement += `Account: ${customer.phone || 'N/A'}\n`;
     statement += `\nThank you for choosing Arctic Coolers.`;
 
     return statement;
@@ -134,45 +139,48 @@ const RemindersPage = () => {
   const sendWhatsApp = (customer) => {
     const statement = statementPreviews[customer.id] || generateStatement(customer);
     const encodedMessage = encodeURIComponent(statement);
-    const cleanPhone = customer.phone.replace(/\D/g, '');
+    const cleanPhone = (customer.phone || '').replace(/\D/g, '');
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
   };
 
+  // ✅ FIXED: sendBulkWhatsApp with toasts
   const sendBulkWhatsApp = () => {
     const customersToSend = customersWithBalance.filter((c) =>
       selectedCustomers.includes(c.id)
     );
 
     if (customersToSend.length === 0) {
-      toast.error('No customers selected');  // ← CHANGED from alert
+      toast.error('No customers selected');
       return;
     }
 
     customersToSend.forEach((customer, index) => {
       setTimeout(() => {
         sendWhatsApp(customer);
-        toast.success(`Sent to ${customer.name}`);  // ← ADDED
+        toast.success(`Sent to ${customer.name}`);
       }, index * 1000);
     });
 
-    toast.success(`Sending ${customersToSend.length} reminders...`);  // ← ADDED
+    toast.success(`Sending ${customersToSend.length} reminders...`);
   };
 
+  // ✅ FIXED: handleDeleteCustomer with toast
   const handleDeleteCustomer = (customerId) => {
-    if (window.confirm('Are you sure you want to delete this customer? All their transactions will also be deleted.')) {
+    if (window.confirm('Delete this customer? All transactions will be deleted.')) {
       deleteCustomer(customerId);
-      toast.success('Customer deleted');  // ← ADDED
+      toast.success('Customer deleted');
     }
   };
 
+  // ✅ FIXED: handleDeleteTransaction with toast
   const handleDeleteTransaction = (customerId, transactionId) => {
-    if (window.confirm('Are you sure you want to delete this transaction?')) {
+    if (window.confirm('Delete this transaction?')) {
       deleteTransaction(customerId, transactionId);
-      toast.success('Transaction deleted');  // ← ADDED
+      toast.success('Transaction deleted');
     }
   };
 
-  // ✅ Weekly Reminder Handlers
+  // Weekly Reminder Handlers
   const handleToggleWeeklyReminders = () => {
     const newSettings = { ...weeklyReminders, enabled: !weeklyReminders.enabled };
     saveWeeklyReminders(newSettings);
@@ -197,8 +205,9 @@ const RemindersPage = () => {
     }
   };
 
+  // ✅ SAFE: Total outstanding calculation
   const totalOutstanding = customersWithOutstanding.reduce(
-    (sum, c) => sum + c.outstandingBalance,
+    (sum, c) => sum + (c.outstandingBalance || 0),
     0
   );
 
@@ -357,7 +366,9 @@ const RemindersPage = () => {
           </div>
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <p className="text-xs text-gray-500 uppercase font-medium">Total Outstanding</p>
-            <p className="text-2xl font-bold text-red-600">KSh {totalOutstanding.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-red-600">
+              KSh {(totalOutstanding || 0).toFixed(2)}
+            </p>
           </div>
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <p className="text-xs text-gray-500 uppercase font-medium">Selected</p>
@@ -411,11 +422,11 @@ const RemindersPage = () => {
                         
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="inline-flex items-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
-                            Total Credit: KSh {customer.outstandingBalance.toFixed(2)}
+                            Balance: KSh {(customer.outstandingBalance || 0).toFixed(2)}
                           </span>
                           
                           <span className="inline-flex items-center rounded-md bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
-                            {customer.transactions.length} transaction(s)
+                            {(customer.transactions || []).length} transaction(s)
                           </span>
                           
                           <span className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10">
@@ -464,7 +475,7 @@ const RemindersPage = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {customer.transactions.map((transaction) => (
+                          {(customer.transactions || []).map((transaction) => (
                             <tr key={transaction.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 whitespace-nowrap">{formatDate(transaction.date)}</td>
                               <td className="px-4 py-3">
@@ -479,7 +490,8 @@ const RemindersPage = () => {
                               <td className={`px-4 py-3 text-right font-medium ${
                                 transaction.type === 'Credit' ? 'text-red-600' : 'text-green-600'
                               }`}>
-                                KSh {(transaction.type === 'Credit' ? transaction.amount : transaction.paid).toFixed(2)}
+                                {/* ✅ SAFE: Handle undefined amount/paid */}
+                                KSh {(transaction.type === 'Credit' ? transaction.amount : transaction.paid || 0).toFixed(2)}
                               </td>
                               <td className="px-4 py-3 text-gray-600">{transaction.notes || '-'}</td>
                               <td className="px-4 py-3">
