@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';  // ← ADDED
 
 const RemindersPage = () => {
   const { 
@@ -15,19 +16,37 @@ const RemindersPage = () => {
   const [expandedCustomerId, setExpandedCustomerId] = useState(null);
   const [statementPreviews, setStatementPreviews] = useState({});
   const [selectedCustomerIdFromSession, setSelectedCustomerIdFromSession] = useState(null);
+  
+  // ✅ Weekly Reminder Settings
+  const [weeklyReminders, setWeeklyReminders] = useState({
+    enabled: false,
+    day: 'monday',
+    time: '09:00',
+  });
 
-  // Check for selected customer from Transactions page
+  // Load weekly reminder settings from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('weeklyReminders');
+    if (saved) {
+      setWeeklyReminders(JSON.parse(saved));
+    }
+  }, []);
+
+  // Save weekly reminder settings
+  const saveWeeklyReminders = (settings) => {
+    setWeeklyReminders(settings);
+    localStorage.setItem('weeklyReminders', JSON.stringify(settings));
+  };
+
   useEffect(() => {
     const savedCustomerId = sessionStorage.getItem('selectedCustomerId');
     if (savedCustomerId) {
       setSelectedCustomerIdFromSession(Number(savedCustomerId));
       setExpandedCustomerId(Number(savedCustomerId));
-      // Clear the session storage after using it
       sessionStorage.removeItem('selectedCustomerId');
     }
   }, []);
 
-  // Calculate outstanding balance for each customer
   const customersWithBalance = customers.map((customer) => {
     const totalCredit = customer.transactions
       .filter((t) => t.type === 'Credit')
@@ -50,34 +69,28 @@ const RemindersPage = () => {
     };
   });
 
-  // Filter customers with outstanding balances
   const customersWithOutstanding = customersWithBalance.filter((c) => c.hasOutstanding);
 
-  // Filter based on search
   const filteredCustomers = customersWithOutstanding.filter(
     (c) =>
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.phone.includes(searchTerm)
   );
 
-  // Toggle customer selection
   const toggleCustomerSelection = (id) => {
     setSelectedCustomers((prev) =>
       prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]
     );
   };
 
-  // Select all visible customers
   const selectAll = () => {
     setSelectedCustomers(filteredCustomers.map((c) => c.id));
   };
 
-  // Deselect all
   const deselectAll = () => {
     setSelectedCustomers([]);
   };
 
-  // Format date for display
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', {
@@ -87,17 +100,9 @@ const RemindersPage = () => {
     });
   };
 
-  // Generate statement text for a customer
   const generateStatement = (customer) => {
     const unpaidTransactions = customer.transactions
-      .filter((t) => t.type === 'Credit')
-      .filter((t) => {
-        // Check if this credit has been fully paid
-        const totalPaidForCredit = customer.transactions
-          .filter((pt) => pt.type === 'Payment')
-          .reduce((sum, pt) => sum + (pt.paid || 0), 0);
-        return true; // For simplicity, show all credits in statement
-      });
+      .filter((t) => t.type === 'Credit');
     
     let statement = `Hello ${customer.name}, here we go\n\n`;
     statement += `TRANSACTION HISTORY\n`;
@@ -117,7 +122,6 @@ const RemindersPage = () => {
     return statement;
   };
 
-  // Handle Generate Statement
   const handleGenerateStatement = (customerId) => {
     const customer = customersWithBalance.find((c) => c.id === customerId);
     if (!customer) return;
@@ -127,48 +131,72 @@ const RemindersPage = () => {
     setExpandedCustomerId(customerId);
   };
 
-  // Send WhatsApp message
   const sendWhatsApp = (customer) => {
     const statement = statementPreviews[customer.id] || generateStatement(customer);
     const encodedMessage = encodeURIComponent(statement);
     const cleanPhone = customer.phone.replace(/\D/g, '');
-    const whatsappURL = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
-    window.open(whatsappURL, '_blank');
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
   };
 
-  // Send bulk WhatsApp messages
   const sendBulkWhatsApp = () => {
     const customersToSend = customersWithBalance.filter((c) =>
       selectedCustomers.includes(c.id)
     );
 
     if (customersToSend.length === 0) {
-      alert('No customers selected');
+      toast.error('No customers selected');  // ← CHANGED from alert
       return;
     }
 
     customersToSend.forEach((customer, index) => {
       setTimeout(() => {
         sendWhatsApp(customer);
+        toast.success(`Sent to ${customer.name}`);  // ← ADDED
       }, index * 1000);
     });
+
+    toast.success(`Sending ${customersToSend.length} reminders...`);  // ← ADDED
   };
 
-  // Handle Delete Customer
   const handleDeleteCustomer = (customerId) => {
     if (window.confirm('Are you sure you want to delete this customer? All their transactions will also be deleted.')) {
       deleteCustomer(customerId);
+      toast.success('Customer deleted');  // ← ADDED
     }
   };
 
-  // Handle Delete Transaction
   const handleDeleteTransaction = (customerId, transactionId) => {
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       deleteTransaction(customerId, transactionId);
+      toast.success('Transaction deleted');  // ← ADDED
     }
   };
 
-  // Total outstanding
+  // ✅ Weekly Reminder Handlers
+  const handleToggleWeeklyReminders = () => {
+    const newSettings = { ...weeklyReminders, enabled: !weeklyReminders.enabled };
+    saveWeeklyReminders(newSettings);
+    toast.success(newSettings.enabled ? 'Weekly reminders enabled' : 'Weekly reminders disabled');
+  };
+
+  const handleSaveWeeklyReminders = () => {
+    saveWeeklyReminders(weeklyReminders);
+    toast.success('Weekly reminder settings saved!');
+    
+    // Request browser notification permission
+    if ('Notification' in window) {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') {
+          toast.success('Browser notifications enabled!');
+          new Notification('Arctic Coolers Ledger', {
+            body: 'Weekly reminders are now active!',
+            icon: '/vite.svg',
+          });
+        }
+      });
+    }
+  };
+
   const totalOutstanding = customersWithOutstanding.reduce(
     (sum, c) => sum + c.outstandingBalance,
     0
@@ -177,15 +205,21 @@ const RemindersPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       
-      {/* Header */}
+      {/* Header with Back Button */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-30">
         <div className="mx-auto max-w-5xl flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-600 hover:text-gray-800 transition-colors">
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* ← BACK BUTTON TO DASHBOARD */}
+            <Link
+              to="/"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
+              Back to Dashboard
             </Link>
+            
             <div>
               <h1 className="text-xl font-bold text-gray-900">Arctic Coolers Statements</h1>
               <p className="text-sm text-gray-500">Customers with outstanding balances</p>
@@ -203,16 +237,72 @@ const RemindersPage = () => {
 
       <main className="mx-auto max-w-5xl p-6 space-y-6">
         
+        {/* Weekly Reminders Card */}
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Weekly Reminder Notifications
+              </h2>
+              <p className="text-purple-100 text-sm mt-1">Automatically remind customers with outstanding balances</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={weeklyReminders.enabled}
+                onChange={handleToggleWeeklyReminders}
+                className="sr-only peer"
+              />
+              <div className="w-14 h-7 bg-purple-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-white"></div>
+              <span className="ml-3 text-sm font-medium">{weeklyReminders.enabled ? 'ON' : 'OFF'}</span>
+            </label>
+          </div>
+
+          {weeklyReminders.enabled && (
+            <div className="mt-4 grid grid-cols-2 gap-4 bg-white/10 rounded-lg p-4">
+              <div>
+                <label className="block text-xs text-purple-100 mb-1">Day</label>
+                <select
+                  value={weeklyReminders.day}
+                  onChange={(e) => setWeeklyReminders({...weeklyReminders, day: e.target.value})}
+                  className="w-full rounded-lg bg-white text-gray-800 px-3 py-2 text-sm focus:outline-none"
+                >
+                  <option value="monday">Monday</option>
+                  <option value="tuesday">Tuesday</option>
+                  <option value="wednesday">Wednesday</option>
+                  <option value="thursday">Thursday</option>
+                  <option value="friday">Friday</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-purple-100 mb-1">Time</label>
+                <input
+                  type="time"
+                  value={weeklyReminders.time}
+                  onChange={(e) => setWeeklyReminders({...weeklyReminders, time: e.target.value})}
+                  className="w-full rounded-lg bg-white text-gray-800 px-3 py-2 text-sm focus:outline-none"
+                />
+              </div>
+              <div className="col-span-2">
+                <button
+                  onClick={handleSaveWeeklyReminders}
+                  className="w-full bg-white text-purple-600 font-semibold px-4 py-2 rounded-lg hover:bg-purple-50 transition-colors"
+                >
+                  Save Settings
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Search and Actions */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
           {/* Search */}
           <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
