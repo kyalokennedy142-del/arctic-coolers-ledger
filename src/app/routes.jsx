@@ -2,7 +2,6 @@ import { createBrowserRouter } from "react-router-dom";
 import Layout from "./layout";
 import LoginPage from "../modules/auth/LoginPage";
 import AuthGuard from "../lib/AuthGuard";
-import TestSupabase from "../TestSupabase";  // ← Test component
 
 import DashboardPage from "../modules/dashboard/DashboardPage";
 import CustomersPage from "../modules/customers/CustomersPage";
@@ -12,19 +11,13 @@ import PurchasesPage from "../modules/purchases/PurchasesPage";
 import BrokersPage from "../modules/brokers/BrokersPage";
 
 const router = createBrowserRouter([
-  // Login route
+  // Login route (public)
   {
     path: "/login",
     element: <LoginPage />,
   },
   
-  // Test route (must be BEFORE Layout routes)
-  {
-    path: "/test-supabase",
-    element: <TestSupabase />,
-  },
-  
-  // Protected routes with Layout
+  // Protected routes (require login)
   {
     path: "/",
     element: (

@@ -16,33 +16,57 @@ export function DataProvider({ children }) {
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load from localStorage on mount
+  // ============================================
+  // 🔽 LOAD FROM LOCALSTORAGE ON MOUNT
+  // ============================================
   useEffect(() => {
-    const savedCustomers = localStorage.getItem('arctic-customers');
-    const savedBrokers = localStorage.getItem('arctic-brokers');
-    const savedPurchases = localStorage.getItem('arctic-purchases');
-    
-    if (savedCustomers) setCustomers(JSON.parse(savedCustomers));
-    if (savedBrokers) setBrokers(JSON.parse(savedBrokers));
-    if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
-    
-    setLoading(false);
+    try {
+      const savedCustomers = localStorage.getItem('arctic-customers');
+      const savedBrokers = localStorage.getItem('arctic-brokers');
+      const savedPurchases = localStorage.getItem('arctic-purchases');
+      
+      console.log('📦 Loading from localStorage...');
+      console.log('  Customers:', savedCustomers ? '✅ Found' : '❌ Empty');
+      console.log('  Brokers:', savedBrokers ? '✅ Found' : '❌ Empty');
+      console.log('  Purchases:', savedPurchases ? '✅ Found' : '❌ Empty');
+
+      if (savedCustomers) setCustomers(JSON.parse(savedCustomers));
+      if (savedBrokers) setBrokers(JSON.parse(savedBrokers));
+      if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
+    } catch (error) {
+      console.error('❌ Error loading from localStorage:', error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Save to localStorage whenever data changes
+  // ============================================
+  // 🔼 SAVE TO LOCALSTORAGE WHENEVER DATA CHANGES
+  // ============================================
   useEffect(() => {
-    localStorage.setItem('arctic-customers', JSON.stringify(customers));
-  }, [customers]);
+    if (!loading) {
+      localStorage.setItem('arctic-customers', JSON.stringify(customers));
+      console.log('💾 Saved customers to localStorage:', customers.length);
+    }
+  }, [customers, loading]);
 
   useEffect(() => {
-    localStorage.setItem('arctic-brokers', JSON.stringify(brokers));
-  }, [brokers]);
+    if (!loading) {
+      localStorage.setItem('arctic-brokers', JSON.stringify(brokers));
+      console.log('💾 Saved brokers to localStorage:', brokers.length);
+    }
+  }, [brokers, loading]);
 
   useEffect(() => {
-    localStorage.setItem('arctic-purchases', JSON.stringify(purchases));
-  }, [purchases]);
+    if (!loading) {
+      localStorage.setItem('arctic-purchases', JSON.stringify(purchases));
+      console.log('💾 Saved purchases to localStorage:', purchases.length);
+    }
+  }, [purchases, loading]);
 
-  // ========== CUSTOMER ACTIONS ==========
+  // ============================================
+  // CUSTOMER ACTIONS
+  // ============================================
   const addCustomer = (customer) => {
     const newCustomer = {
       ...customer,
@@ -50,16 +74,19 @@ export function DataProvider({ children }) {
       transactions: [],
       createdAt: new Date().toISOString()
     };
-    setCustomers([newCustomer, ...customers]);
+    setCustomers(prev => [newCustomer, ...prev]);
+    console.log('✅ Added customer:', newCustomer.name);
     return newCustomer;
   };
 
   const updateCustomer = (updated) => {
-    setCustomers(customers.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+    setCustomers(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
+    console.log('✅ Updated customer:', updated.id);
   };
 
   const deleteCustomer = (id) => {
-    setCustomers(customers.filter(c => c.id !== id));
+    setCustomers(prev => prev.filter(c => c.id !== id));
+    console.log('✅ Deleted customer:', id);
   };
 
   const addTransaction = (customerId, transaction) => {
@@ -68,16 +95,17 @@ export function DataProvider({ children }) {
       id: Date.now(),
       createdAt: new Date().toISOString()
     };
-    setCustomers(customers.map(c => 
+    setCustomers(prev => prev.map(c => 
       c.id === customerId 
         ? { ...c, transactions: [newTransaction, ...c.transactions] }
         : c
     ));
+    console.log('✅ Added transaction to customer:', customerId);
     return newTransaction;
   };
 
   const updateTransaction = (customerId, transactionId, updates) => {
-    setCustomers(customers.map(c => 
+    setCustomers(prev => prev.map(c => 
       c.id === customerId 
         ? { 
             ...c, 
@@ -87,17 +115,21 @@ export function DataProvider({ children }) {
           }
         : c
     ));
+    console.log('✅ Updated transaction:', transactionId);
   };
 
   const deleteTransaction = (customerId, transactionId) => {
-    setCustomers(customers.map(c => 
+    setCustomers(prev => prev.map(c => 
       c.id === customerId 
         ? { ...c, transactions: c.transactions.filter(t => t.id !== transactionId) }
         : c
     ));
+    console.log('✅ Deleted transaction:', transactionId);
   };
 
-  // ========== BROKER ACTIONS ==========
+  // ============================================
+  // BROKER ACTIONS
+  // ============================================
   const addBroker = (broker) => {
     const newBroker = {
       ...broker,
@@ -105,16 +137,19 @@ export function DataProvider({ children }) {
       entries: [],
       createdAt: new Date().toISOString()
     };
-    setBrokers([newBroker, ...brokers]);
+    setBrokers(prev => [newBroker, ...prev]);
+    console.log('✅ Added broker:', newBroker.name);
     return newBroker;
   };
 
   const updateBroker = (updated) => {
-    setBrokers(brokers.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+    setBrokers(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+    console.log('✅ Updated broker:', updated.id);
   };
 
   const deleteBroker = (id) => {
-    setBrokers(brokers.filter(b => b.id !== id));
+    setBrokers(prev => prev.filter(b => b.id !== id));
+    console.log('✅ Deleted broker:', id);
   };
 
   const addEntry = (brokerId, entry) => {
@@ -123,16 +158,17 @@ export function DataProvider({ children }) {
       id: Date.now(),
       createdAt: new Date().toISOString()
     };
-    setBrokers(brokers.map(b => 
+    setBrokers(prev => prev.map(b => 
       b.id === brokerId 
         ? { ...b, entries: [...b.entries, newEntry] }
         : b
     ));
+    console.log('✅ Added entry to broker:', brokerId);
     return newEntry;
   };
 
   const updateEntry = (brokerId, entryId, updates) => {
-    setBrokers(brokers.map(b => 
+    setBrokers(prev => prev.map(b => 
       b.id === brokerId 
         ? { 
             ...b, 
@@ -142,17 +178,21 @@ export function DataProvider({ children }) {
           }
         : b
     ));
+    console.log('✅ Updated entry:', entryId);
   };
 
   const deleteEntry = (brokerId, entryId) => {
-    setBrokers(brokers.map(b => 
+    setBrokers(prev => prev.map(b => 
       b.id === brokerId 
         ? { ...b, entries: b.entries.filter(e => e.id !== entryId) }
         : b
     ));
+    console.log('✅ Deleted entry:', entryId);
   };
 
-  // ========== PURCHASE ACTIONS ==========
+  // ============================================
+  // PURCHASE ACTIONS
+  // ============================================
   const addPurchase = (purchase) => {
     const newPurchase = {
       ...purchase,
@@ -160,19 +200,24 @@ export function DataProvider({ children }) {
       items: purchase.items || [],
       createdAt: new Date().toISOString()
     };
-    setPurchases([newPurchase, ...purchases]);
+    setPurchases(prev => [newPurchase, ...prev]);
+    console.log('✅ Added purchase:', newPurchase.company);
     return newPurchase;
   };
 
   const updatePurchase = (updated) => {
-    setPurchases(purchases.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+    setPurchases(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+    console.log('✅ Updated purchase:', updated.id);
   };
 
   const deletePurchase = (id) => {
-    setPurchases(purchases.filter(p => p.id !== id));
+    setPurchases(prev => prev.filter(p => p.id !== id));
+    console.log('✅ Deleted purchase:', id);
   };
 
-  // ========== HELPERS ==========
+  // ============================================
+  // HELPER FUNCTIONS
+  // ============================================
   const calculateCustomerBalance = (customer) => {
     if (!customer) return 0;
     const totalCredit = (customer.transactions || [])
@@ -192,16 +237,16 @@ export function DataProvider({ children }) {
   };
 
   const getStats = () => {
-    const totalCredit = customers.reduce((sum, c) => 
+    const totalCredit = (customers || []).reduce((sum, c) => 
       sum + (c.transactions || []).filter(t => t.type === 'Credit').reduce((s, t) => s + (t.amount || 0), 0), 0);
-    const totalPaid = customers.reduce((sum, c) => 
+    const totalPaid = (customers || []).reduce((sum, c) => 
       sum + (c.transactions || []).filter(t => t.type === 'Payment').reduce((s, t) => s + (t.paid || 0), 0), 0);
-    const totalPurchases = purchases.reduce((sum, p) => sum + (p.totalExpenditure || 0), 0);
+    const totalPurchases = (purchases || []).reduce((sum, p) => sum + (p.totalExpenditure || 0), 0);
     
     return {
-      totalCustomers: customers.length,
-      totalBrokers: brokers.length,
-      totalPurchases: purchases.length,
+      totalCustomers: (customers || []).length,
+      totalBrokers: (brokers || []).length,
+      totalPurchases: (purchases || []).length,
       totalCredit,
       totalPaid,
       outstandingBalance: totalCredit - totalPaid,

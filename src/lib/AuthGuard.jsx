@@ -1,13 +1,18 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 const AuthGuard = ({ children }) => {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const location = useLocation();
   
+  // ✅ Check if user is logged in
+  const isLoggedIn = localStorage.getItem('arctic-logged-in') === 'true';
+  
+  // ✅ If not logged in, redirect to login page
   if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
+  // ✅ If logged in, render the protected content
   return children;
 };
 
