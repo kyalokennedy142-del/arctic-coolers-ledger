@@ -9,6 +9,7 @@ import TransactionsPage from "../modules/transactions/TransactionsPage";
 import RemindersPage from "../modules/reminders/RemindersPage";
 import PurchasesPage from "../modules/purchases/PurchasesPage";
 import BrokersPage from "../modules/brokers/BrokersPage";
+import TestSupabase from '../TestSupabase';
 
 const router = createBrowserRouter([
   {
@@ -46,6 +47,11 @@ const router = createBrowserRouter([
       {
         path: "brokers",
         element: <BrokersPage />,
+      },
+      {
+        path: "/test-supabase",
+        element: <TestSupabase />,
+
       },
 // Add to the routes array:
 {
