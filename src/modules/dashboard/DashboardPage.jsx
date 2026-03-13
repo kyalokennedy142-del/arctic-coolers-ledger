@@ -1,4 +1,4 @@
-import React, { useState } from 'react';  // ✅ Added useState
+ import React, { useState } from 'react';  // ✅ Added useState
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';  // ✅ Added toast import
@@ -116,25 +116,8 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Secondary Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Outstanding Balance</p>
-            <p className="text-2xl font-bold text-red-600 mt-1">KSh {outstandingBalance.toFixed(2)}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Customers Owing</p>
-            <p className="text-2xl font-bold text-amber-600 mt-1">{customersOwing}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Total Brokers</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{totalBrokers}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Total Purchases</p>
-            <p className="text-2xl font-bold text-orange-600 mt-1">{totalPurchases}</p>
-          </div>
-        </div>
+        
+          
 
         {/* Quick Access */}
         <div className="mb-8">

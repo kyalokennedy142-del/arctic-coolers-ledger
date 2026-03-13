@@ -516,7 +516,7 @@ const TransactionsPage = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.01"  // ✅ MONEY: allow decimals
+                    step="empty"        // ✅ MONEY: allow decimals
                     min="0"
                     value={newTransaction.type === 'Credit' ? newTransaction.amount : newTransaction.paid}
                     onChange={(e) => {

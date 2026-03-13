@@ -112,33 +112,94 @@ const BrokersPage = () => {
     }
   };
 
+  // ✅ IMPROVED: Better statement template
   const handleGenerateStatement = () => {
     const broker = getExpandedBroker();
     if (!broker) return;
 
-    let text = `BROKER STATEMENT - ${broker.name.toUpperCase()}\n`;
-    text += `Date | Day | Bottles | Amount | Paid | Balance\n`;
-    text += `---------------------------------------------\n`;
+    // Professional header
+    let text = `═══════════════════════════════════════\n`;
+    text += `     ARCTIC COOLERS \n`;
+    text += `═══════════════════════════════════════\n\n`;
+    text += `Broker: ${broker.name}\n`;
+    text += `Phone:  ${broker.phone}\n`;
+    text += `Area:   ${broker.area}\n`;
+    text += `Date:   ${new Date().toLocaleDateString('en-GB')}\n\n`;
     
+    text += `───────────────────────────────────────\n`;
+    text += `DATE       | DAY   | BTL | AMOUNT | PAID | BALANCE\n`;
+    text += `───────────────────────────────────────\n`;
+    
+    
+    
+    // Entries
     (broker.entries || []).forEach((entry) => {
-      text += `${entry.date} | ${entry.day?.substring(0, 3) || ''} | ${entry.bottles || 0} | ${(entry.amount || 0).toFixed(2)} | ${(entry.paid || 0).toFixed(2)} | ${(entry.balance || 0).toFixed(2)}\n`;
+      const dateShort = entry.date ? new Date(entry.date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' }) : '';
+      const dayShort = entry.day?.substring(0, 3).toUpperCase() || '';
+      const bottles = (entry.bottles || 0).toString().padStart(3, ' ');
+      const amount = (entry.amount || 0).toFixed(2).padStart(7, ' ');
+      const paid = (entry.paid || 0).toFixed(2).padStart(7, ' ');
+      const balance = (entry.balance || 0).toFixed(2).padStart(7, ' ');
+      
+      text += `${dateShort} | ${dayShort} | ${bottles} | ${amount} | ${paid} | ${balance}\n`;
     });
 
+    // Total
     const currentBalance = calculateBrokerBalance(broker);
-    text += `---------------------------------------------\n`;
-    text += `TOTAL BALANCE: KSh ${(currentBalance || 0).toFixed(2)}`;
+    text += `───────────────────────────────────────\n`;
+    text += `                                    \n`;
+    text += `TOTAL BALANCE:              KSh ${currentBalance.toFixed(2)}\n`;
+    text += `                                    \n`;
+    text += `PAYMENT DETAILS:\n`;
+    text += `• Paybill: 247247\n`;
+    text += `• Account: ${broker.phone}\n`;
+    text += `• Reference: ${broker.name.replace(/\s+/g, '')}\n\n`;
+    text += `Thank you for your partnership!\n`;
+    text += `Arctic Coolers Ltd\n`;
+    text += `═══════════════════════════════════════`;
 
     setStatementText(text);
     setIsStatementOpen(true);
   };
 
-  // ✅ FIXED: WhatsApp URL (no space)
+  // ✅ FIXED: sendWhatsApp - Reliable phone formatting + error handling
   const sendWhatsApp = () => {
-    const broker = getExpandedBroker();
-    if (!broker) return;
-    const encodedText = encodeURIComponent(statementText);
-    const cleanPhone = broker.phone?.replace(/\D/g, '') || '';
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedText}`, '_blank');
+    try {
+      const broker = getExpandedBroker();
+      if (!broker) return;
+      
+      const encodedText = encodeURIComponent(statementText);
+      
+      // Clean phone: remove all non-digits, ensure Kenyan format (254 prefix)
+      let cleanPhone = (broker.phone || '').replace(/\D/g, '');
+      
+      // Convert local format (07XX) to international (2547XX)
+      if (cleanPhone.startsWith('0')) {
+        cleanPhone = '254' + cleanPhone.slice(1);
+      }
+      
+      // Validate phone has minimum length
+      if (cleanPhone.length < 10) {
+        toast.error('Invalid phone number format');
+        return;
+      }
+      
+      // ✅ FIXED: Removed extra space in URL
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+      
+      // Open WhatsApp in new tab
+      const newWindow = window.open(whatsappUrl, '_blank');
+      
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        toast.error('Could not open WhatsApp. Please allow pop-ups.');
+        return;
+      }
+      
+      toast.success('Opening WhatsApp...');
+    } catch (error) {
+      console.error('WhatsApp send error:', error);
+      toast.error('Failed to send statement');
+    }
   };
 
   const handleCloseEntryModal = () => {
@@ -448,10 +509,9 @@ const BrokersPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Opening Balance (KSh)
                 </label>
-                {/* ✅ MONEY: Allow decimals */}
+                {/* ✅ MONEY: Allow any number (arrows removed via CSS) */}
                 <input
                   type="number"
-                  step="0.01"
                   min="0"
                   value={newBroker.openingBalance}
                   onChange={(e) => setNewBroker({ ...newBroker, openingBalance: e.target.value })}
@@ -526,14 +586,13 @@ const BrokersPage = () => {
                 </div>
               </div>
 
-              {/* Bottles - WHOLE NUMBERS ONLY */}
+              {/* Bottles - Any number now (arrows removed via CSS) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bottles Taken (ref)
                 </label>
                 <input
                   type="number"
-                  step="1"           // ✅ Only whole numbers
                   min="0"
                   value={newEntry.bottles}
                   onChange={(e) => setNewEntry({ ...newEntry, bottles: e.target.value })}
@@ -542,14 +601,13 @@ const BrokersPage = () => {
                 />
               </div>
 
-              {/* Amount - MONEY (allow decimals) */}
+              {/* Amount - MONEY (any number now) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Amount (KSh) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
-                  step="0.01"        // ✅ 2 decimal places for money
                   min="0"
                   value={newEntry.amount}
                   onChange={(e) => setNewEntry({ ...newEntry, amount: e.target.value })}
@@ -558,14 +616,13 @@ const BrokersPage = () => {
                 />
               </div>
 
-              {/* Paid - MONEY (allow decimals) */}
+              {/* Paid - MONEY (any number now) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Amount Paid (KSh)
                 </label>
                 <input
                   type="number"
-                  step="0.01"
                   min="0"
                   value={newEntry.paid}
                   onChange={(e) => setNewEntry({ ...newEntry, paid: e.target.value })}
@@ -615,7 +672,7 @@ const BrokersPage = () => {
             <textarea
               readOnly
               value={statementText}
-              className="w-full h-48 rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs text-gray-700 focus:outline-none resize-none"
+              className="w-full h-64 rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs text-gray-700 focus:outline-none resize-none"
             />
 
             <div className="mt-4 flex gap-3">

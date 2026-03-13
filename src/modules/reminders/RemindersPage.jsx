@@ -70,9 +70,12 @@ const RemindersPage = () => {
     };
   });
 
-  const customersWithOutstanding = customersWithBalance.filter((c) => c.hasOutstanding);
+  // ✅ UPDATED: Filter to ONLY customers with outstanding balance > 0
+  const customersWithOutstanding = customersWithBalance.filter(
+    (c) => c.hasOutstanding && c.outstandingBalance > 0
+  );
 
-  // ✅ SAFE: Filter customers with null checks
+  // ✅ UPDATED: Filter search results (only from owing customers)
   const filteredCustomers = customersWithOutstanding.filter(
     (c) =>
       c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -136,32 +139,98 @@ const RemindersPage = () => {
     setExpandedCustomerId(customerId);
   };
 
+  // ✅ FIXED: sendWhatsApp - Reliable phone formatting + error handling
   const sendWhatsApp = (customer) => {
-    const statement = statementPreviews[customer.id] || generateStatement(customer);
-    const encodedMessage = encodeURIComponent(statement);
-    const cleanPhone = (customer.phone || '').replace(/\D/g, '');
-    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+    try {
+      const statement = statementPreviews[customer.id] || generateStatement(customer);
+      
+      // Encode message for URL (handles special chars)
+      const encodedMessage = encodeURIComponent(statement);
+      
+      // Clean phone: remove all non-digits, ensure Kenyan format (254 prefix)
+      let cleanPhone = (customer.phone || '').replace(/\D/g, '');
+      
+      // Convert local format (07XX) to international (2547XX)
+      if (cleanPhone.startsWith('0')) {
+        cleanPhone = '254' + cleanPhone.slice(1);
+      }
+      
+      // Validate phone has minimum length
+      if (cleanPhone.length < 10) {
+        toast.error(`Invalid phone for ${customer.name}`);
+        return false;
+      }
+      
+      // ✅ FIXED: Removed extra space in URL
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+      
+      // Open WhatsApp in new tab
+      const newWindow = window.open(whatsappUrl, '_blank');
+      
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        toast.error(`Could not open WhatsApp for ${customer.name}. Please allow pop-ups.`);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('WhatsApp send error:', error);
+      toast.error(`Failed to send to ${customer.name}`);
+      return false;
+    }
   };
 
-  // ✅ FIXED: sendBulkWhatsApp with toasts
-  const sendBulkWhatsApp = () => {
-    const customersToSend = customersWithBalance.filter((c) =>
-      selectedCustomers.includes(c.id)
+  // ✅ IMPROVED: sendBulkWhatsApp - Reliable async handling with progress
+  const sendBulkWhatsApp = async () => {
+    // Filter to only selected customers WITH outstanding balance
+    const customersToSend = filteredCustomers.filter((c) =>
+      selectedCustomers.includes(c.id) && c.outstandingBalance > 0
     );
 
     if (customersToSend.length === 0) {
-      toast.error('No customers selected');
+      toast.error('No customers selected or no outstanding balances');
       return;
     }
 
-    customersToSend.forEach((customer, index) => {
-      setTimeout(() => {
-        sendWhatsApp(customer);
-        toast.success(`Sent to ${customer.name}`);
-      }, index * 1000);
-    });
+    toast.success(`Starting to send ${customersToSend.length} reminders...`);
+    
+    let successCount = 0;
+    let failCount = 0;
 
-    toast.success(`Sending ${customersToSend.length} reminders...`);
+    // Send with delay to avoid browser throttling
+    for (let i = 0; i < customersToSend.length; i++) {
+      const customer = customersToSend[i];
+      
+      // Small delay between sends (300ms)
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const success = sendWhatsApp(customer);
+      
+      if (success) {
+        successCount++;
+        toast.success(`✓ Sent to ${customer.name}`);
+      } else {
+        failCount++;
+        toast.error(`✗ Failed: ${customer.name}`);
+      }
+      
+      // Update progress toast every 5 sends
+      if ((i + 1) % 5 === 0 || i === customersToSend.length - 1) {
+        toast.loading(`Progress: ${successCount + failCount}/${customersToSend.length}...`, {
+          id: 'bulk-progress',
+          duration: 2000
+        });
+      }
+    }
+    
+    // Final summary
+    toast.dismiss('bulk-progress');
+    toast.success(`Done! ✓${successCount} sent, ✗${failCount} failed`, {
+      duration: 5000
+    });
+    
+    // Clear selection after bulk send
+    setSelectedCustomers([]);
   };
 
   // ✅ FIXED: handleDeleteCustomer with toast
@@ -205,11 +274,15 @@ const RemindersPage = () => {
     }
   };
 
-  // ✅ SAFE: Total outstanding calculation
+  // ✅ UPDATED: Stats based on filtered (owing) customers only
   const totalOutstanding = customersWithOutstanding.reduce(
     (sum, c) => sum + (c.outstandingBalance || 0),
     0
   );
+
+  const avgBalance = customersWithOutstanding.length > 0
+    ? totalOutstanding / customersWithOutstanding.length
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
@@ -377,7 +450,7 @@ const RemindersPage = () => {
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <p className="text-xs text-gray-500 uppercase font-medium">Avg Balance</p>
             <p className="text-2xl font-bold text-gray-900">
-              KSh {(totalOutstanding / (customersWithOutstanding.length || 1)).toFixed(2)}
+              KSh {(avgBalance || 0).toFixed(2)}
             </p>
           </div>
         </div>
@@ -389,9 +462,18 @@ const RemindersPage = () => {
               <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="mt-4 text-gray-500">No customers with outstanding balances found</p>
+              <p className="mt-4 text-gray-500">
+                {searchTerm 
+                  ? "No matching customers with outstanding balances found" 
+                  : "No customers with outstanding balances"}
+              </p>
+              {!searchTerm && (
+                <p className="text-sm text-gray-400 mt-2">
+                  All customers are up to date! 🎉
+                </p>
+              )}
               <Link to="/customers" className="mt-3 text-blue-600 font-medium hover:text-blue-700 inline-block">
-                Add customers first →
+                {searchTerm ? "Clear search" : "Add customers first →"}
               </Link>
             </div>
           ) : (

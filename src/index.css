@@ -1,6 +1,29 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* ============================================
+   REMOVE NUMBER INPUT ARROWS (All Browsers)
+   ============================================ */
+
+/* Chrome, Safari, Edge, Opera */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Optional: Add subtle focus ring for better UX */
+input[type="number"]:focus {
+  @apply ring-2 ring-blue-500 ring-offset-2 outline-none;
+}
+
+
 
 /* ===== GLOBAL STYLES ===== */
 

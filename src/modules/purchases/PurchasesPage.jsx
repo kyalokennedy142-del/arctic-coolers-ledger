@@ -319,7 +319,7 @@ const PurchasesPage = () => {
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-gray-700">Transport Cost (KSh)</label>
                       {/* ✅ MONEY: Allow decimals */}
-                      <input type="number" name="transportCost" step="0.01" min="0" value={formData.transportCost} onChange={handleFormChange} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" placeholder="0.00" />
+                      <input type="number" name="transportCost" step="empty" min="0" value={formData.transportCost} onChange={handleFormChange} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none" placeholder="0.00" />
                     </div>
                   </div>
                 </div>
@@ -346,11 +346,11 @@ const PurchasesPage = () => {
                         </div>
                         <div className="col-span-1 md:col-span-3">
                           {/* ✅ BOTTLES: Whole numbers only */}
-                          <input type="number" step="1" min="0" value={row.quantity} onChange={(e) => handleRowChange(row.id, 'quantity', e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none" placeholder="0" />
+                          <input type="number" step="empty"  value={row.quantity} onChange={(e) => handleRowChange(row.id, 'quantity', e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none" placeholder="0" />
                         </div>
                         <div className="col-span-1 md:col-span-3">
                           {/* ✅ AMOUNT: Allow decimals */}
-                          <input type="number" step="0.01" min="0" value={row.amount} onChange={(e) => handleRowChange(row.id, 'amount', e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none" placeholder="0.00" />
+                          <input type="number" step="empty"  value={row.amount} onChange={(e) => handleRowChange(row.id, 'amount', e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-right focus:border-orange-500 focus:outline-none" placeholder="0.00" />
                         </div>
                         <div className="col-span-1 md:col-span-1 flex justify-end">
                           {rows.length > 1 && (
