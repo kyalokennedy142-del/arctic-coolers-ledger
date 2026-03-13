@@ -18,20 +18,132 @@ export function DataProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   // ============================================
-  // 🔽 LOAD FROM LOCALSTORAGE ON MOUNT (Primary)
+  // 🔽 LOAD FROM SUPABASE ON MOUNT (Primary)
   // ============================================
   useEffect(() => {
+    const loadFromSupabase = async () => {
+      if (!supabase) {
+        console.warn('⚠️ Supabase not available, falling back to localStorage');
+        loadFromLocalStorage();
+        return;
+      }
+
+      try {
+        console.log('☁️ Loading from Supabase...');
+        
+        // Load customers - handle null response
+        const { data: customersData, error: customersError } = await supabase
+          .from('customers')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (customersError) throw customersError;
+        const safeCustomers = customersData || [];
+        
+        // Load brokers - handle null response
+        const { data: brokersData, error: brokersError } = await supabase
+          .from('brokers')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (brokersError) throw brokersError;
+        const safeBrokers = brokersData || [];
+        
+        // Load purchases with items - handle null response
+        const { data: purchasesData, error: purchasesError } = await supabase
+          .from('purchases')
+          .select(`
+            *,
+            purchase_items (
+              id,
+              product_type,
+              quantity,
+              amount,
+              created_at
+            )
+          `)
+          .order('created_at', { ascending: false });
+        
+        if (purchasesError) throw purchasesError;
+        const safePurchases = purchasesData || [];
+        
+        // Transform purchases to match app structure
+        const transformedPurchases = safePurchases.map(p => ({
+          ...p,
+          items: p.purchase_items || [],
+          transportCost: p.transport_cost,
+          totalExpenditure: p.total_expenditure
+        }));
+        
+        // Transform customers to match app structure (add transactions from separate table)
+        const transformedCustomers = await Promise.all(
+          safeCustomers.map(async (c) => {
+            const { data: transactions, error: txError } = await supabase
+              .from('transactions')
+              .select('*')
+              .eq('customer_id', c.id)
+              .order('created_at', { ascending: false });
+            
+            if (txError) console.warn('⚠️ Error loading transactions for customer', c.id, txError.message);
+            
+            return {
+              ...c,
+              transactions: transactions || [],
+              createdAt: c.created_at,
+              updatedAt: c.updated_at
+            };
+          })
+        );
+        
+        // Transform brokers to match app structure (add entries from separate table)
+        const transformedBrokers = await Promise.all(
+          safeBrokers.map(async (b) => {
+            const { data: entries, error: entriesError } = await supabase
+              .from('broker_entries')
+              .select('*')
+              .eq('broker_id', b.id)
+              .order('created_at', { ascending: false });
+            
+            if (entriesError) console.warn('⚠️ Error loading entries for broker', b.id, entriesError.message);
+            
+            return {
+              ...b,
+              entries: entries || [],
+              openingBalance: b.opening_balance,
+              createdAt: b.created_at,
+              updatedAt: b.updated_at
+            };
+          })
+        );
+        
+        // Update state with Supabase data
+        setCustomers(transformedCustomers);
+        setBrokers(transformedBrokers);
+        setPurchases(transformedPurchases);
+        
+        console.log('✅ Loaded from Supabase:', {
+          customers: transformedCustomers.length,
+          brokers: transformedBrokers.length,
+          purchases: transformedPurchases.length
+        });
+        
+      } catch (error) {
+        console.error('❌ Error loading from Supabase:', error.message);
+        console.log('🔄 Falling back to localStorage...');
+        loadFromLocalStorage();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Fallback: Load from localStorage if Supabase fails
     const loadFromLocalStorage = () => {
       try {
-        console.log('📦 Loading from localStorage...');
+        console.log('📦 Loading from localStorage (fallback)...');
         const savedCustomers = localStorage.getItem('arctic-customers');
         const savedBrokers = localStorage.getItem('arctic-brokers');
         const savedPurchases = localStorage.getItem('arctic-purchases');
         
-        console.log('  Customers:', savedCustomers ? '✅ Found' : '❌ Empty');
-        console.log('  Brokers:', savedBrokers ? '✅ Found' : '❌ Empty');
-        console.log('  Purchases:', savedPurchases ? '✅ Found' : '❌ Empty');
-
         if (savedCustomers) setCustomers(JSON.parse(savedCustomers));
         if (savedBrokers) setBrokers(JSON.parse(savedBrokers));
         if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
@@ -42,139 +154,179 @@ export function DataProvider({ children }) {
       }
     };
 
-    loadFromLocalStorage();
+    loadFromSupabase();
   }, []);
 
   // ============================================
-  // 🔼 SAVE TO LOCALSTORAGE WHENEVER DATA CHANGES (Primary)
+  // 🔼 SAVE TO SUPABASE WHENEVER DATA CHANGES (Primary)
   // ============================================
+  
+  // Save customers to Supabase
   useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('arctic-customers', JSON.stringify(customers));
-      console.log('💾 Saved customers to localStorage:', customers.length);
-      backupCustomersToSupabase();
+    if (!loading && supabase) {
+      saveCustomersToSupabase();
     }
   }, [customers, loading]);
 
+  // Save brokers to Supabase
   useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('arctic-brokers', JSON.stringify(brokers));
-      console.log('💾 Saved brokers to localStorage:', brokers.length);
-      backupBrokersToSupabase();
+    if (!loading && supabase) {
+      saveBrokersToSupabase();
     }
   }, [brokers, loading]);
 
+  // Save purchases to Supabase
   useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('arctic-purchases', JSON.stringify(purchases));
-      console.log('💾 Saved purchases to localStorage:', purchases.length);
-      backupPurchasesToSupabase();
+    if (!loading && supabase) {
+      savePurchasesToSupabase();
     }
   }, [purchases, loading]);
 
+  // Also save to localStorage as backup
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem('arctic-customers', JSON.stringify(customers));
+      localStorage.setItem('arctic-brokers', JSON.stringify(brokers));
+      localStorage.setItem('arctic-purchases', JSON.stringify(purchases));
+    }
+  }, [customers, brokers, purchases, loading]);
+
   // ============================================
-  // 🔄 SIMPLIFIED BACKUP FUNCTIONS (Insert + Update Fallback)
+  // 🔄 SUPABASE SAVE FUNCTIONS
   // ============================================
   
-  const backupSingleRecord = async (table, record, idField = 'id') => {
+  const saveCustomersToSupabase = async () => {
     if (!supabase) return;
     
     try {
-      // Try to insert first
-      const { error: insertError } = await supabase.from(table).insert([record]);
-      
-      // If duplicate key error, update instead
-      if (insertError?.code === '23505' || insertError?.message?.includes('duplicate')) {
-        const { [idField]: idValue, ...updateData } = record;
-        await supabase.from(table).update(updateData).eq(idField, idValue);
-      }
-    } catch (e) {
-      // Silent fail - localStorage still works
-      console.warn(`⚠️ Supabase backup failed for ${table}:`, e.message);
-    }
-  };
-
-  const backupCustomersToSupabase = async () => {
-    if (!supabase) return;
-    try {
       for (const customer of customers) {
-        await backupSingleRecord('customers', {
+        // Upsert customer
+        await supabase.from('customers').upsert({
           id: customer.id,
           name: customer.name,
           phone: customer.phone,
           location: customer.location,
-          created_at: customer.createdAt,
+          created_at: customer.createdAt || customer.created_at,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
+        
+        // Sync transactions
+        if (customer.transactions?.length > 0) {
+          // Delete existing transactions for this customer first
+          await supabase.from('transactions').delete().eq('customer_id', customer.id);
+          
+          // Insert new transactions
+          const transactionsToInsert = customer.transactions.map(t => ({
+            id: t.id,
+            customer_id: customer.id,
+            type: t.type,
+            amount: t.type === 'Credit' ? t.amount : null,
+            paid: t.type === 'Payment' ? t.paid : null,
+            notes: t.notes,
+            date: t.date,
+            created_at: t.createdAt || t.created_at,
+            updated_at: new Date().toISOString()
+          }));
+          
+          await supabase.from('transactions').insert(transactionsToInsert);
+        }
       }
-      console.log('☁️ Backed up', customers.length, 'customers to Supabase');
+      console.log('☁️ Saved', customers.length, 'customers to Supabase');
     } catch (error) {
-      console.warn('⚠️ Supabase backup failed:', error.message);
+      console.warn('⚠️ Failed to save customers to Supabase:', error.message);
     }
   };
 
-  const backupBrokersToSupabase = async () => {
+  const saveBrokersToSupabase = async () => {
     if (!supabase) return;
+    
     try {
       for (const broker of brokers) {
-        await backupSingleRecord('brokers', {
+        // Upsert broker
+        await supabase.from('brokers').upsert({
           id: broker.id,
           name: broker.name,
           phone: broker.phone,
           area: broker.area,
           opening_balance: broker.openingBalance,
-          created_at: broker.createdAt,
+          created_at: broker.createdAt || broker.created_at,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
+        
+        // Sync entries
+        if (broker.entries?.length > 0) {
+          // Delete existing entries for this broker first
+          await supabase.from('broker_entries').delete().eq('broker_id', broker.id);
+          
+          // Insert new entries
+          const entriesToInsert = broker.entries.map(e => ({
+            id: e.id,
+            broker_id: broker.id,
+            date: e.date,
+            day: e.day,
+            bottles: e.bottles,
+            amount: e.amount,
+            paid: e.paid,
+            balance: e.balance,
+            created_at: e.createdAt || e.created_at,
+            updated_at: new Date().toISOString()
+          }));
+          
+          await supabase.from('broker_entries').insert(entriesToInsert);
+        }
       }
-      console.log('☁️ Backed up', brokers.length, 'brokers to Supabase');
+      console.log('☁️ Saved', brokers.length, 'brokers to Supabase');
     } catch (error) {
-      console.warn('⚠️ Supabase backup failed:', error.message);
+      console.warn('⚠️ Failed to save brokers to Supabase:', error.message);
     }
   };
 
-  const backupPurchasesToSupabase = async () => {
+  const savePurchasesToSupabase = async () => {
     if (!supabase) return;
+    
     try {
       for (const purchase of purchases) {
-        await backupSingleRecord('purchases', {
+        // Upsert purchase
+        await supabase.from('purchases').upsert({
           id: purchase.id,
           date: purchase.date,
           company: purchase.company,
           agent: purchase.agent,
           transport_cost: purchase.transportCost,
           total_expenditure: purchase.totalExpenditure,
-          created_at: purchase.createdAt,
+          created_at: purchase.createdAt || purchase.created_at,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
         
-        // Backup items separately
+        // Sync items
         if (purchase.items?.length > 0) {
-          // Delete existing items first to avoid duplicates
+          // Delete existing items for this purchase first
           await supabase.from('purchase_items').delete().eq('purchase_id', purchase.id);
           
+          // Insert new items
           const itemsToInsert = purchase.items.map(item => ({
             id: item.id,
             purchase_id: purchase.id,
             product_type: item.productType,
             quantity: item.quantity,
             amount: item.amount,
-            created_at: new Date().toISOString(),
+            created_at: item.createdAt || item.created_at,
             updated_at: new Date().toISOString()
           }));
           
           await supabase.from('purchase_items').insert(itemsToInsert);
         }
       }
-      console.log('☁️ Backed up', purchases.length, 'purchases to Supabase');
+      console.log('☁️ Saved', purchases.length, 'purchases to Supabase');
     } catch (error) {
-      console.warn('⚠️ Supabase backup failed:', error.message);
+      console.warn('⚠️ Failed to save purchases to Supabase:', error.message);
     }
   };
 
   // ============================================
-  // CUSTOMER ACTIONS
+  // CRUD ACTIONS (Write to Supabase + localStorage backup)
   // ============================================
+  
   const addCustomer = (customer) => {
     const newCustomer = {
       ...customer,
@@ -183,25 +335,24 @@ export function DataProvider({ children }) {
       createdAt: new Date().toISOString()
     };
     setCustomers(prev => [newCustomer, ...prev]);
-    console.log('✅ Added customer (localStorage):', newCustomer.name);
     
-    // Backup to Supabase
+    // Also save to Supabase
     if (supabase) {
-      backupSingleRecord('customers', {
+      supabase.from('customers').insert([{
         id: newCustomer.id,
         name: newCustomer.name,
         phone: newCustomer.phone,
         location: newCustomer.location,
         created_at: newCustomer.createdAt,
         updated_at: new Date().toISOString()
-      });
+      }]);
     }
+    
     return newCustomer;
   };
 
   const updateCustomer = (updated) => {
     setCustomers(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c));
-    console.log('✅ Updated customer (localStorage):', updated.id);
     
     if (supabase) {
       supabase.from('customers').update({
@@ -215,10 +366,10 @@ export function DataProvider({ children }) {
 
   const deleteCustomer = (id) => {
     setCustomers(prev => prev.filter(c => c.id !== id));
-    console.log('✅ Deleted customer (localStorage):', id);
     
     if (supabase) {
       supabase.from('customers').delete().eq('id', id);
+      supabase.from('transactions').delete().eq('customer_id', id);
     }
   };
 
@@ -233,7 +384,6 @@ export function DataProvider({ children }) {
         ? { ...c, transactions: [newTransaction, ...c.transactions] }
         : c
     ));
-    console.log('✅ Added transaction (localStorage):', customerId);
     
     if (supabase) {
       supabase.from('transactions').insert([{
@@ -248,6 +398,7 @@ export function DataProvider({ children }) {
         updated_at: new Date().toISOString()
       }]);
     }
+    
     return newTransaction;
   };
 
@@ -262,7 +413,6 @@ export function DataProvider({ children }) {
           }
         : c
     ));
-    console.log('✅ Updated transaction (localStorage):', transactionId);
     
     if (supabase) {
       supabase.from('transactions').update({
@@ -282,16 +432,12 @@ export function DataProvider({ children }) {
         ? { ...c, transactions: c.transactions.filter(t => t.id !== transactionId) }
         : c
     ));
-    console.log('✅ Deleted transaction (localStorage):', transactionId);
     
     if (supabase) {
       supabase.from('transactions').delete().eq('id', transactionId);
     }
   };
 
-  // ============================================
-  // BROKER ACTIONS - FIXED FOREIGN KEY ISSUE
-  // ============================================
   const addBroker = (broker) => {
     const newBroker = {
       ...broker,
@@ -300,10 +446,9 @@ export function DataProvider({ children }) {
       createdAt: new Date().toISOString()
     };
     setBrokers(prev => [newBroker, ...prev]);
-    console.log('✅ Added broker (localStorage):', newBroker.name);
     
     if (supabase) {
-      backupSingleRecord('brokers', {
+      supabase.from('brokers').insert([{
         id: newBroker.id,
         name: newBroker.name,
         phone: newBroker.phone,
@@ -311,14 +456,14 @@ export function DataProvider({ children }) {
         opening_balance: newBroker.openingBalance,
         created_at: newBroker.createdAt,
         updated_at: new Date().toISOString()
-      });
+      }]);
     }
+    
     return newBroker;
   };
 
   const updateBroker = (updated) => {
     setBrokers(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
-    console.log('✅ Updated broker (localStorage):', updated.id);
     
     if (supabase) {
       supabase.from('brokers').update({
@@ -333,70 +478,40 @@ export function DataProvider({ children }) {
 
   const deleteBroker = (id) => {
     setBrokers(prev => prev.filter(b => b.id !== id));
-    console.log('✅ Deleted broker (localStorage):', id);
     
     if (supabase) {
       supabase.from('brokers').delete().eq('id', id);
+      supabase.from('broker_entries').delete().eq('broker_id', id);
     }
   };
 
-  // ✅ FIXED: addEntry - Uses functional update to avoid stale closure
   const addEntry = (brokerId, entry) => {
     const newEntry = {
       ...entry,
       id: Date.now(),
       createdAt: new Date().toISOString()
     };
+    setBrokers(prev => prev.map(b => 
+      b.id === brokerId 
+        ? { ...b, entries: [...b.entries, newEntry] }
+        : b
+    ));
     
-    // Update localStorage AND backup to Supabase in same functional update
-    setBrokers(prev => {
-      const updatedBrokers = prev.map(b => 
-        b.id === brokerId 
-          ? { ...b, entries: [...b.entries, newEntry] }
-          : b
-      );
-      
-      // Backup to Supabase using the UPDATED state (not stale closure)
-      if (supabase) {
-        const broker = updatedBrokers.find(b => b.id === brokerId);
-        
-        if (broker) {
-          // First, ensure broker exists in Supabase
-          backupSingleRecord('brokers', {
-            id: broker.id,
-            name: broker.name,
-            phone: broker.phone,
-            area: broker.area,
-            opening_balance: broker.openingBalance,
-            updated_at: new Date().toISOString()
-          }).then(() => {
-            // NOW add the entry (broker_id will exist)
-            supabase.from('broker_entries').insert([{
-              id: newEntry.id,
-              broker_id: brokerId,
-              date: newEntry.date,
-              day: newEntry.day,
-              bottles: newEntry.bottles,
-              amount: newEntry.amount,
-              paid: newEntry.paid,
-              balance: newEntry.balance,
-              created_at: newEntry.createdAt,
-              updated_at: new Date().toISOString()
-            }]).then(({ error }) => {
-              if (error) {
-                console.warn('⚠️ Supabase entry insert failed:', error.message);
-              } else {
-                console.log('☁️ Entry backed up to Supabase');
-              }
-            });
-          });
-        }
-      }
-      
-      return updatedBrokers;
-    });
+    if (supabase) {
+      supabase.from('broker_entries').insert([{
+        id: newEntry.id,
+        broker_id: brokerId,
+        date: newEntry.date,
+        day: newEntry.day,
+        bottles: newEntry.bottles,
+        amount: newEntry.amount,
+        paid: newEntry.paid,
+        balance: newEntry.balance,
+        created_at: newEntry.createdAt,
+        updated_at: new Date().toISOString()
+      }]);
+    }
     
-    console.log('✅ Added entry (localStorage):', brokerId);
     return newEntry;
   };
 
@@ -411,7 +526,6 @@ export function DataProvider({ children }) {
           }
         : b
     ));
-    console.log('✅ Updated entry (localStorage):', entryId);
     
     if (supabase) {
       supabase.from('broker_entries').update({
@@ -432,16 +546,12 @@ export function DataProvider({ children }) {
         ? { ...b, entries: b.entries.filter(e => e.id !== entryId) }
         : b
     ));
-    console.log('✅ Deleted entry (localStorage):', entryId);
     
     if (supabase) {
       supabase.from('broker_entries').delete().eq('id', entryId);
     }
   };
 
-  // ============================================
-  // PURCHASE ACTIONS
-  // ============================================
   const addPurchase = (purchase) => {
     const newPurchase = {
       ...purchase,
@@ -450,11 +560,9 @@ export function DataProvider({ children }) {
       createdAt: new Date().toISOString()
     };
     setPurchases(prev => [newPurchase, ...prev]);
-    console.log('✅ Added purchase (localStorage):', newPurchase.company);
     
     if (supabase) {
-      // Backup purchase header
-      backupSingleRecord('purchases', {
+      supabase.from('purchases').insert([{
         id: newPurchase.id,
         date: newPurchase.date,
         company: newPurchase.company,
@@ -463,29 +571,26 @@ export function DataProvider({ children }) {
         total_expenditure: newPurchase.totalExpenditure,
         created_at: newPurchase.createdAt,
         updated_at: new Date().toISOString()
-      }).then(() => {
-        // Backup items if any
-        if (newPurchase.items?.length > 0) {
-          supabase.from('purchase_items').delete().eq('purchase_id', newPurchase.id).then(() => {
-            const itemsToInsert = newPurchase.items.map(item => ({
-              purchase_id: newPurchase.id,
-              product_type: item.productType,
-              quantity: item.quantity,
-              amount: item.amount,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }));
-            supabase.from('purchase_items').insert(itemsToInsert);
-          });
+      }]).then(({ data }) => {
+        if (data?.[0]?.id && newPurchase.items?.length > 0) {
+          const itemsToInsert = newPurchase.items.map(item => ({
+            purchase_id: data[0].id,
+            product_type: item.productType,
+            quantity: item.quantity,
+            amount: item.amount,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+          supabase.from('purchase_items').insert(itemsToInsert);
         }
       });
     }
+    
     return newPurchase;
   };
 
   const updatePurchase = (updated) => {
     setPurchases(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
-    console.log('✅ Updated purchase (localStorage):', updated.id);
     
     if (supabase) {
       supabase.from('purchases').update({
@@ -501,16 +606,17 @@ export function DataProvider({ children }) {
 
   const deletePurchase = (id) => {
     setPurchases(prev => prev.filter(p => p.id !== id));
-    console.log('✅ Deleted purchase (localStorage):', id);
     
     if (supabase) {
       supabase.from('purchases').delete().eq('id', id);
+      supabase.from('purchase_items').delete().eq('purchase_id', id);
     }
   };
 
   // ============================================
-  // HELPER FUNCTIONS
+  // HELPER FUNCTIONS (unchanged)
   // ============================================
+  
   const calculateCustomerBalance = (customer) => {
     if (!customer) return 0;
     const totalCredit = (customer.transactions || [])

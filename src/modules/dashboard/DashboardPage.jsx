@@ -11,6 +11,9 @@ const DashboardPage = () => {
   
   const stats = getStats();
 
+
+
+
   // ✅ Fixed logout function
   const handleLogout = () => {
     localStorage.removeItem('arctic-logged-in');
