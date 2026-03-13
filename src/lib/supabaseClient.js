@@ -3,10 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Simple, clear logging
-console.log('🔌 Supabase:', {
-  url: supabaseUrl ? '✅' : '❌',
-  key: supabaseKey ? `✅ (${supabaseKey.length} chars)` : '❌'
-});
+console.log('🔌 Supabase Client Initializing...');
+console.log('  URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
+console.log('  Key:', supabaseKey ? `✅ Set (${supabaseKey.length} chars)` : '❌ Missing');
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey) 
+  : null;
+
+export default supabase;
