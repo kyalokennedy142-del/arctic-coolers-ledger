@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import Layout from "./layout";
 import LoginPage from "../modules/auth/LoginPage";
 import AuthGuard from "../lib/AuthGuard";
+import TestSupabase from '../pages/TestSupabase';
 
 import DashboardPage from "../modules/dashboard/DashboardPage";
 import CustomersPage from "../modules/customers/CustomersPage";
@@ -16,7 +17,10 @@ const router = createBrowserRouter([
     path: "/login",
     element: <LoginPage />,
   },
-  
+  {
+    path: "/test-supabase",
+    element: <TestSupabase />,
+  },
   // Protected routes (require login)
   {
     path: "/",
