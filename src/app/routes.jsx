@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 // Layout & Auth
 import Layout from "./layout";
 import LoginPage from "../modules/auth/LoginPage";
+import SignUpPage from "../modules/auth/SignUpPage";
 import AuthGuard from "../lib/AuthGuard";
 
 // Pages
@@ -13,23 +14,18 @@ import RemindersPage from "../modules/reminders/RemindersPage";
 import PurchasesPage from "../modules/purchases/PurchasesPage";
 import BrokersPage from "../modules/brokers/BrokersPage";
 
-// ✅ Test Page (for Supabase testing)
-import TestSupabase from "../pages/TestSupabase";
-
 const router = createBrowserRouter([
-  // Public routes
+  // ✅ Public routes (no auth required)
   {
     path: "/login",
     element: <LoginPage />,
   },
-  
-  // ✅ Test route (public, no auth required)
   {
-    path: "/test-supabase",
-    element: <TestSupabase />,
+    path: "/signup",
+    element: <SignUpPage />,
   },
   
-  // Protected routes (require login)
+  // ✅ Protected routes (require login via AuthGuard)
   {
     path: "/",
     element: (
