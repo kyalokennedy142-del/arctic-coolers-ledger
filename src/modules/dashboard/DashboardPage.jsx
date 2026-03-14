@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';  // ✅ Added toast import
 
 const DashboardPage = () => {
-  const { customers, brokers, purchases, getStats } = useData();
+  const {  getStats } = useData();
   
   // ✅ Added state for logout confirmation
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -26,17 +26,6 @@ const DashboardPage = () => {
   const totalCustomers = stats?.totalCustomers || 0;
   const totalCredit = stats?.totalCredit || 0;
   const totalPaid = stats?.totalPaid || 0;
-  const outstandingBalance = stats?.outstandingBalance || 0;
-  const customersOwing = customers?.filter(c => {
-    const balance = (c.transactions || []).reduce((sum, t) => {
-      if (t.type === 'Credit') return sum + (t.amount || 0);
-      if (t.type === 'Payment') return sum - (t.paid || 0);
-      return sum;
-    }, 0);
-    return balance > 0;
-  }).length || 0;
-  const totalBrokers = stats?.totalBrokers || 0;
-  const totalPurchases = stats?.totalPurchases || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600">
