@@ -192,9 +192,19 @@ export function DataProvider({ children }) {
   }, [customers, brokers, purchases, loading]);
 
   // ============================================
-  // 🔄 SUPABASE SAVE FUNCTIONS
+  // 🔄 SUPABASE SAVE FUNCTIONS (with filtered error logging)
   // ============================================
   
+  // Helper: Check if error is expected during sync (duplicate key / 409 conflict)
+  const isExpectedSyncConflict = (error) => {
+    return (
+      error?.code === '23505' ||  // PostgreSQL unique violation
+      error?.message?.includes('duplicate') ||
+      error?.message?.includes('409') ||
+      error?.status === 409
+    );
+  };
+
   const saveCustomersToSupabase = async () => {
     if (!supabase) return;
     
@@ -233,7 +243,11 @@ export function DataProvider({ children }) {
       }
       console.log('☁️ Saved', customers.length, 'customers to Supabase');
     } catch (error) {
-      console.warn('⚠️ Failed to save customers to Supabase:', error.message);
+      // Only log if it's NOT an expected conflict during sync
+      if (!isExpectedSyncConflict(error)) {
+        console.warn('⚠️ Failed to save customers to Supabase:', error.message);
+      }
+      // Silently ignore expected duplicate key conflicts (data already synced)
     }
   };
 
@@ -277,7 +291,11 @@ export function DataProvider({ children }) {
       }
       console.log('☁️ Saved', brokers.length, 'brokers to Supabase');
     } catch (error) {
-      console.warn('⚠️ Failed to save brokers to Supabase:', error.message);
+      // Only log if it's NOT an expected conflict during sync
+      if (!isExpectedSyncConflict(error)) {
+        console.warn('⚠️ Failed to save brokers to Supabase:', error.message);
+      }
+      // Silently ignore expected duplicate key conflicts (data already synced)
     }
   };
 
@@ -319,7 +337,11 @@ export function DataProvider({ children }) {
       }
       console.log('☁️ Saved', purchases.length, 'purchases to Supabase');
     } catch (error) {
-      console.warn('⚠️ Failed to save purchases to Supabase:', error.message);
+      // Only log if it's NOT an expected conflict during sync
+      if (!isExpectedSyncConflict(error)) {
+        console.warn('⚠️ Failed to save purchases to Supabase:', error.message);
+      }
+      // Silently ignore expected duplicate key conflicts (data already synced)
     }
   };
 

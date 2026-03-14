@@ -53,60 +53,87 @@ const SignUpPage = () => {
   }, [password]);
 
   const handleSignUp = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  // Validate passwords match
+  if (password !== confirmPassword) {
+    toast.error('Passwords do not match!');
+    return;
+  }
+
+  // Validate password strength
+  if (passwordStrength.score < 4) {
+    toast.error('Password is too weak. Please meet all requirements.');
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    // 1. Create Supabase auth user
+    const { data: { user }, error: authError } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password: password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
+    });
+
+    if (authError) throw authError;
+
+    // 2. Create pending approval record (with retry logic)
+    let approvalError = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { error } = await supabase
+        .from('user_approvals')
+        .insert([{
+          email: email.trim().toLowerCase(),
+          user_id: user?.id,
+          status: 'pending',
+          role: 'user',
+          created_at: new Date().toISOString()
+        }]);
+      
+      if (!error) break;
+      approvalError = error;
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+    }
+
+    if (approvalError) {
+      console.warn('⚠️ Could not create approval record:', approvalError.message);
+      // Continue anyway - user can still login, approval check will create record
+    }
+
+    toast.success('Account created! Waiting for admin approval. You will receive an email when approved.');
     
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match!');
-      return;
+    // Clear form
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setPasswordStrength({ score: 0, requirements: { minLength: false, hasUppercase: false, hasLowercase: false, hasNumber: false, hasSpecial: false } });
+    
+    // Redirect to login after 3 seconds
+    setTimeout(() => {
+      navigate('/login');
+    }, 3000);
+    
+  } catch (error) {
+    console.error('Sign up error:', error);
+    
+    if (error.message?.includes('User already registered')) {
+      toast.error('This email is already registered. Please login instead.');
+    } else if (error.message?.includes('Weak password')) {
+      toast.error('Password must be at least 8 characters with mixed case, numbers, and symbols.');
+    } else {
+      toast.error('Sign up failed. Please try again.');
     }
-
-    // Validate password strength
-    if (passwordStrength.score < 4) {
-      toast.error('Password is too weak. Please meet all requirements.');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password: password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
-      });
-
-      if (error) throw error;
-
-      toast.success('Account created! Please check your email to confirm your account.');
-      
-      // Clear form
-      setEmail('');
-      setPassword('');
-      setConfirmPassword('');
-      setPasswordStrength({ score: 0, requirements: { minLength: false, hasUppercase: false, hasLowercase: false, hasNumber: false, hasSpecial: false } });
-      
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        navigate('/login');
-      }, 3000);
-      
-    } catch (error) {
-      console.error('Sign up error:', error);
-      
-      if (error.message.includes('User already registered')) {
-        toast.error('This email is already registered. Please login instead.');
-      } else if (error.message.includes('Weak password')) {
-        toast.error('Password must be at least 8 characters with mixed case, numbers, and symbols.');
-      } else {
-        toast.error('Sign up failed. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  } finally {
+    setIsLoading(false);
+  }
+};
+  
 
   // Get password strength color
   const getStrengthColor = () => {

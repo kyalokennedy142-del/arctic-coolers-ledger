@@ -1,31 +1,90 @@
- import React, { useState } from 'react';  // ✅ Added useState
+import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';  // ✅ Added toast import
+import { supabase } from '../../lib/supabaseClient';
+import toast from 'react-hot-toast';
 
 const DashboardPage = () => {
-  const {  getStats } = useData();
+  const { customers,getStats } = useData();
   
-  // ✅ Added state for logout confirmation
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [userRole, setUserRole] = useState('user');
+  const [roleLoading, setRoleLoading] = useState(true);
   
   const stats = getStats();
 
+  // Load user role on mount
+  useEffect(() => {
+    const loadUserRole = async () => {
+      try {
+        setRoleLoading(true);
+        
+        // 1. Try localStorage first (fast)
+        const storedRole = localStorage.getItem('user_role');
+        if (storedRole === 'admin') {
+          setUserRole('admin');
+          setRoleLoading(false);
+          return;
+        }
+        
+        // 2. Fallback: Check Supabase for approval status
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          const { data: approval } = await supabase
+            .from('user_approvals')
+            .select('role, status')
+            .eq('email', user.email)
+            .maybeSingle();
+          
+          if (approval?.role === 'admin' && approval?.status === 'approved') {
+            setUserRole('admin');
+            localStorage.setItem('user_role', 'admin');
+          } else {
+            setUserRole('user');
+            localStorage.setItem('user_role', 'user');
+          }
+        }
+      } catch (error) {
+        console.warn('Could not load user role:', error);
+        setUserRole('user');
+      } finally {
+        setRoleLoading(false);
+      }
+    };
+    
+    loadUserRole();
+  }, []);
 
-
-
-  // ✅ Fixed logout function
-  const handleLogout = () => {
-    localStorage.removeItem('arctic-logged-in');
-    localStorage.removeItem('arctic-login-time');
-    toast.success('Logged out successfully!');
-    window.location.href = '/login';
+  // Fixed logout function
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      localStorage.removeItem('arctic-logged-in');
+      localStorage.removeItem('arctic-login-time');
+      localStorage.removeItem('user_role');
+      toast.success('Logged out successfully!');
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Logout failed');
+    }
   };
 
   // Safe calculations
   const totalCustomers = stats?.totalCustomers || 0;
   const totalCredit = stats?.totalCredit || 0;
   const totalPaid = stats?.totalPaid || 0;
+  const outstandingBalance = stats?.outstandingBalance || 0;
+  const customersOwing = customers?.filter(c => {
+    const balance = (c.transactions || []).reduce((sum, t) => {
+      if (t.type === 'Credit') return sum + (t.amount || 0);
+      if (t.type === 'Payment') return sum - (t.paid || 0);
+      return sum;
+    }, 0);
+    return balance > 0;
+  }).length || 0;
+  const totalBrokers = stats?.totalBrokers || 0;
+  const totalPurchases = stats?.totalPurchases || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600">
@@ -45,7 +104,7 @@ const DashboardPage = () => {
             </div>
           </div>
           
-          {/* Logout Button - Fixed to use setShowLogoutConfirm */}
+          {/* Logout Button */}
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
@@ -108,13 +167,32 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        
-          
+        {/* Secondary Stats */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
+            <p className="text-gray-500 text-sm font-medium">Outstanding Balance</p>
+            <p className="text-2xl font-bold text-red-600 mt-1">KSh {outstandingBalance.toFixed(2)}</p>
+          </div>
+          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
+            <p className="text-gray-500 text-sm font-medium">Customers Owing</p>
+            <p className="text-2xl font-bold text-amber-600 mt-1">{customersOwing}</p>
+          </div>
+          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
+            <p className="text-gray-500 text-sm font-medium">Total Brokers</p>
+            <p className="text-2xl font-bold text-blue-600 mt-1">{totalBrokers}</p>
+          </div>
+          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
+            <p className="text-gray-500 text-sm font-medium">Total Purchases</p>
+            <p className="text-2xl font-bold text-orange-600 mt-1">{totalPurchases}</p>
+          </div>
+        </div>
 
         {/* Quick Access */}
         <div className="mb-8">
           <h3 className="text-white text-lg font-semibold mb-4">Quick Access</h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            
+            {/* Dashboard */}
             <Link to="/" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -134,6 +212,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* AI Reminders */}
             <Link to="/reminders" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -153,6 +232,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Credit Statements */}
             <Link to="/transactions" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -172,6 +252,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Customers */}
             <Link to="/customers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -191,6 +272,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Purchases */}
             <Link to="/purchases" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -210,6 +292,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Brokers */}
             <Link to="/brokers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -228,12 +311,34 @@ const DashboardPage = () => {
                 </svg>
               </div>
             </Link>
+
+            {/* ✅ Admin Panel - Show ONLY for approved admin users */}
+            {!roleLoading && userRole === 'admin' && (
+              <Link to="/admin" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group border-2 border-purple-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-purple-100 p-3 rounded-xl group-hover:bg-purple-200 transition-colors">
+                      <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Admin Panel</p>
+                      <p className="text-sm text-gray-500">Approve new users</p>
+                    </div>
+                  </div>
+                  <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </Link>
+            )}
           </div>
         </div>
 
       </main>
 
-      {/* ✅ Added Logout Confirmation Modal */}
+      {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
