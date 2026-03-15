@@ -13,6 +13,37 @@ const AdminPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
+// Add this after the imports
+const ADMIN_EMAIL = 'kyalokennedy142@gmail.com'; // Your admin email
+
+// In the component, add this useEffect:
+useEffect(() => {
+  const checkAdminAccess = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    // Check if user email matches admin email
+    if (user.email?.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+      toast.error('Admin access required');
+      navigate('/');
+      return;
+    }
+    
+    setIsAdmin(true);
+  };
+  
+  checkAdminAccess();
+}, [navigate]);
+
+
+
+
+
+
   // ✅ Check admin status FIRST (before any other logic)
   useEffect(() => {
     const checkAdminAccess = async () => {

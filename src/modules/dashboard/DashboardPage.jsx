@@ -13,6 +13,48 @@ const DashboardPage = () => {
   
   const stats = getStats();
 
+// Load user role on mount
+useEffect(() => {
+  const loadUserRole = async () => {
+    try {
+      // ✅ Wait for component to mount (prevents hydration mismatch)
+      if (typeof window === 'undefined') return;
+      
+      // Try localStorage first
+      const storedRole = localStorage.getItem('user_role');
+      if (storedRole) {
+        setUserRole(storedRole);
+        setRoleLoading(false);
+        return;
+      }
+      
+      // Fallback: Check Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Simple admin check
+        const ADMIN_EMAIL = 'kyalokennedy142@gmail.com';
+        
+        if (user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+          setUserRole('admin');
+          localStorage.setItem('user_role', 'admin');
+        } else {
+          setUserRole('user');
+          localStorage.setItem('user_role', 'user');
+        }
+      }
+    } catch (error) {
+      console.warn('Could not load user role:', error);
+      setUserRole('user');
+    } finally {
+      setRoleLoading(false);
+    }
+  };
+  
+  loadUserRole();
+}, []);
+
+
+
   // Load user role on mount
   useEffect(() => {
     const loadUserRole = async () => {
