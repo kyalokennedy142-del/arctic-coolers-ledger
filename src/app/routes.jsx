@@ -13,12 +13,10 @@ import TransactionsPage from "../modules/transactions/TransactionsPage";
 import RemindersPage from "../modules/reminders/RemindersPage";
 import PurchasesPage from "../modules/purchases/PurchasesPage";
 import BrokersPage from "../modules/brokers/BrokersPage";
-
-// ✅ Admin Page
 import AdminPage from "../modules/admin/AdminPage";
 
 const router = createBrowserRouter([
-  // Public routes
+  // ✅ Public routes (no auth required)
   {
     path: "/login",
     element: <LoginPage />,
@@ -28,7 +26,7 @@ const router = createBrowserRouter([
     element: <SignUpPage />,
   },
   
-  // Protected routes (require login + approval)
+  // ✅ Protected routes (require login via AuthGuard)
   {
     path: "/",
     element: (
@@ -61,7 +59,6 @@ const router = createBrowserRouter([
         path: "brokers",
         element: <BrokersPage />,
       },
-      // ✅ Admin route (protected by AuthGuard + admin check in component)
       {
         path: "admin",
         element: <AdminPage />,
