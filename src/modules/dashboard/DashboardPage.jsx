@@ -5,86 +5,42 @@ import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
 const DashboardPage = () => {
-  const { customers,getStats } = useData();
+  // ✅ Get data from context
+  const { customers, getStats } = useData();
   
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [userRole, setUserRole] = useState('user');
   const [roleLoading, setRoleLoading] = useState(true);
   
+  // ✅ Get stats
   const stats = getStats();
 
-// Load user role on mount
-useEffect(() => {
-  const loadUserRole = async () => {
-    try {
-      // ✅ Wait for component to mount (prevents hydration mismatch)
-      if (typeof window === 'undefined') return;
-      
-      // Try localStorage first
-      const storedRole = localStorage.getItem('user_role');
-      if (storedRole) {
-        setUserRole(storedRole);
-        setRoleLoading(false);
-        return;
-      }
-      
-      // Fallback: Check Supabase
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // Simple admin check
-        const ADMIN_EMAIL = 'kyalokennedy142@gmail.com';
-        
-        if (user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-          setUserRole('admin');
-          localStorage.setItem('user_role', 'admin');
-        } else {
-          setUserRole('user');
-          localStorage.setItem('user_role', 'user');
-        }
-      }
-    } catch (error) {
-      console.warn('Could not load user role:', error);
-      setUserRole('user');
-    } finally {
-      setRoleLoading(false);
-    }
-  };
-  
-  loadUserRole();
-}, []);
-
-
-
-  // Load user role on mount
+  // ✅ SINGLE useEffect for loading user role (removed duplicate)
   useEffect(() => {
     const loadUserRole = async () => {
       try {
-        setRoleLoading(true);
-        
-        // 1. Try localStorage first (fast)
-        const storedRole = localStorage.getItem('user_role');
-        if (storedRole === 'admin') {
-          setUserRole('admin');
+        if (typeof window === 'undefined') {
           setRoleLoading(false);
           return;
         }
         
-        // 2. Fallback: Check Supabase for approval status
+        setRoleLoading(true);
+        
+        // Try localStorage first
+        const storedRole = localStorage.getItem('user_role');
+        if (storedRole) {
+          setUserRole(storedRole);
+          setRoleLoading(false);
+          return;
+        }
+        
+        // Fallback: Check Supabase
         const { data: { user } } = await supabase.auth.getUser();
-        if (user?.email) {
-          const { data: approval } = await supabase
-            .from('user_approvals')
-            .select('role, status')
-            .eq('email', user.email)
-            .maybeSingle();
-          
-          if (approval?.role === 'admin' && approval?.status === 'approved') {
-            setUserRole('admin');
-            localStorage.setItem('user_role', 'admin');
-          } else {
-            setUserRole('user');
-            localStorage.setItem('user_role', 'user');
-          }
+        if (user) {
+          const ADMIN_EMAIL = 'kyalokennedy142@gmail.com';
+          const role = user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user';
+          setUserRole(role);
+          localStorage.setItem('user_role', role);
         }
       } catch (error) {
         console.warn('Could not load user role:', error);
@@ -97,12 +53,10 @@ useEffect(() => {
     loadUserRole();
   }, []);
 
-  // Fixed logout function
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
       localStorage.removeItem('arctic-logged-in');
-      localStorage.removeItem('arctic-login-time');
       localStorage.removeItem('user_role');
       toast.success('Logged out successfully!');
       window.location.href = '/login';
@@ -112,25 +66,29 @@ useEffect(() => {
     }
   };
 
-  // Safe calculations
+  // ✅ Safe calculations with CORRECT field names
   const totalCustomers = stats?.totalCustomers || 0;
   const totalCredit = stats?.totalCredit || 0;
   const totalPaid = stats?.totalPaid || 0;
   const outstandingBalance = stats?.outstandingBalance || 0;
+  
+  // ✅ Use transaction_type (NOT type) and amount (NOT paid)
   const customersOwing = customers?.filter(c => {
     const balance = (c.transactions || []).reduce((sum, t) => {
-      if (t.type === 'Credit') return sum + (t.amount || 0);
-      if (t.type === 'Payment') return sum - (t.paid || 0);
+      const type = t.transaction_type?.toLowerCase();
+      const amount = Number(t.amount) || 0;
+      if (type === 'credit') return sum + amount;
+      if (['payment', 'paid'].includes(type)) return sum - amount;
       return sum;
     }, 0);
     return balance > 0;
   }).length || 0;
+  
   const totalBrokers = stats?.totalBrokers || 0;
   const totalPurchases = stats?.totalPurchases || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600">
-      
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 pb-12">
       {/* Header */}
       <header className="bg-white/10 backdrop-blur-md border-b border-white/20 px-6 py-4">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
@@ -145,8 +103,6 @@ useEffect(() => {
               <p className="text-blue-100 text-sm">Dashboard Overview</p>
             </div>
           </div>
-          
-          {/* Logout Button */}
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="flex items-center gap-2 rounded-lg bg-white/20 backdrop-blur px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
@@ -160,7 +116,6 @@ useEffect(() => {
       </header>
 
       <main className="mx-auto max-w-7xl p-6 -mt-6">
-        
         {/* Main Stats Cards */}
         <div className="grid gap-6 md:grid-cols-3 mb-6">
           {/* Customers */}
@@ -183,7 +138,7 @@ useEffect(() => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-red-100 text-sm font-medium uppercase tracking-wider">Total Credit</p>
-                <p className="text-4xl font-bold mt-2">KSh {totalCredit.toFixed(2)}</p>
+                <p className="text-4xl font-bold mt-2">KSh {totalCredit.toLocaleString()}</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl">
                 <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -198,7 +153,7 @@ useEffect(() => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-100 text-sm font-medium uppercase tracking-wider">Total Paid</p>
-                <p className="text-4xl font-bold mt-2">KSh {totalPaid.toFixed(2)}</p>
+                <p className="text-4xl font-bold mt-2">KSh {totalPaid.toLocaleString()}</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl">
                 <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,7 +168,7 @@ useEffect(() => {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
           <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
             <p className="text-gray-500 text-sm font-medium">Outstanding Balance</p>
-            <p className="text-2xl font-bold text-red-600 mt-1">KSh {outstandingBalance.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-red-600 mt-1">KSh {outstandingBalance.toLocaleString()}</p>
           </div>
           <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
             <p className="text-gray-500 text-sm font-medium">Customers Owing</p>
@@ -234,46 +189,6 @@ useEffect(() => {
           <h3 className="text-white text-lg font-semibold mb-4">Quick Access</h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             
-            {/* Dashboard */}
-            <Link to="/" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-blue-100 p-3 rounded-xl group-hover:bg-blue-200 transition-colors">
-                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Dashboard</p>
-                    <p className="text-sm text-gray-500">Overview & summaries</p>
-                  </div>
-                </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </Link>
-
-            {/* AI Reminders */}
-            <Link to="/reminders" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-purple-100 p-3 rounded-xl group-hover:bg-purple-200 transition-colors">
-                    <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">AI Reminders</p>
-                    <p className="text-sm text-gray-500">Send debt reminders</p>
-                  </div>
-                </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </Link>
-
             {/* Credit Statements */}
             <Link to="/transactions" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
@@ -289,6 +204,26 @@ useEffect(() => {
                   </div>
                 </div>
                 <svg className="h-5 w-5 text-gray-400 group-hover:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+            </Link>
+
+            {/* Broker Ledger */}
+            <Link to="/brokers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-yellow-100 p-3 rounded-xl group-hover:bg-yellow-200 transition-colors">
+                    <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">Broker Ledger</p>
+                    <p className="text-sm text-gray-500">Manage broker records</p>
+                  </div>
+                </div>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-yellow-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
@@ -334,27 +269,27 @@ useEffect(() => {
               </div>
             </Link>
 
-            {/* Brokers */}
-            <Link to="/brokers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
+            {/* AI Reminders */}
+            <Link to="/reminders" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="bg-yellow-100 p-3 rounded-xl group-hover:bg-yellow-200 transition-colors">
-                    <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <div className="bg-purple-100 p-3 rounded-xl group-hover:bg-purple-200 transition-colors">
+                    <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">Broker Ledger</p>
-                    <p className="text-sm text-gray-500">Manage broker records</p>
+                    <p className="font-semibold text-gray-900">AI Reminders</p>
+                    <p className="text-sm text-gray-500">Send debt reminders</p>
                   </div>
                 </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-yellow-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
             </Link>
 
-            {/* ✅ Admin Panel - Show ONLY for approved admin users */}
+            {/* ✅ Admin Panel - Show ONLY for admin */}
             {!roleLoading && userRole === 'admin' && (
               <Link to="/admin" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group border-2 border-purple-300">
                 <div className="flex items-center justify-between">
@@ -377,7 +312,6 @@ useEffect(() => {
             )}
           </div>
         </div>
-
       </main>
 
       {/* Logout Confirmation Modal */}

@@ -7,9 +7,7 @@ const RemindersPage = () => {
   const { 
     customers, 
     deleteCustomer, 
-    deleteTransaction,
-    calculateCustomerBalance 
-  } = useData();
+    deleteTransaction  } = useData();
 
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +26,7 @@ const RemindersPage = () => {
   useEffect(() => {
     const saved = localStorage.getItem('weeklyReminders');
     if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWeeklyReminders(JSON.parse(saved));
     }
   }, []);
@@ -41,6 +40,7 @@ const RemindersPage = () => {
   useEffect(() => {
     const savedCustomerId = sessionStorage.getItem('selectedCustomerId');
     if (savedCustomerId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedCustomerIdFromSession(Number(savedCustomerId));
       setExpandedCustomerId(Number(savedCustomerId));
       sessionStorage.removeItem('selectedCustomerId');

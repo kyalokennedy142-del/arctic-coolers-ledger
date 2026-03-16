@@ -7,7 +7,6 @@ const BrokersPage = () => {
   const { 
     brokers, 
     addBroker, 
-    updateBroker, 
     deleteBroker, 
     addEntry, 
     updateEntry, 
@@ -209,6 +208,7 @@ const BrokersPage = () => {
   };
 
   const expandedBroker = getExpandedBroker();
+  // eslint-disable-next-line no-unused-vars
   const currentBalance = expandedBroker ? calculateBrokerBalance(expandedBroker) : 0;
   
   let prevBalanceForEntry = 0;

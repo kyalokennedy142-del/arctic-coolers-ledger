@@ -8,7 +8,12 @@ console.log('  URL:', supabaseUrl ? '✅ Set' : '❌ Missing');
 console.log('  Key:', supabaseKey ? `✅ Set (${supabaseKey.length} chars)` : '❌ Missing');
 
 export const supabase = supabaseUrl && supabaseKey 
-  ? createClient(supabaseUrl, supabaseKey) 
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;
 
 export default supabase;
