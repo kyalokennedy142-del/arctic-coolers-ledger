@@ -1,10 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 // src/modules/brokers/BrokersPage.jsx
-import React, { useState, useMemo } from 'react';
-import { useData } from '../../Context/DataContext'; // ✅ FIXED: lowercase 'context'
-import { data, Link } from 'react-router-dom';
+
+import React, { useState, useMemo, useCallback } from 'react';
+import { useData } from '../../Context/DataContext';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { formatKSH, formatPhoneForWhatsApp, getDayName } from '../../lib/formatCurrency'; // ✅ Added utilities
+import { formatKSH, formatPhoneForWhatsApp, getDayName } from '../../lib/formatCurrency';
 
 const BrokersPage = () => {
   const { 
@@ -16,7 +17,7 @@ const BrokersPage = () => {
     deleteLedgerEntry,
     calculateBrokerBalance 
   } = useData();
-
+  
   const [expandedBrokerId, setExpandedBrokerId] = useState(null);
   const [isAddBrokerOpen, setIsAddBrokerOpen] = useState(false);
   const [isAddEntryOpen, setIsAddEntryOpen] = useState(false);
@@ -33,35 +34,35 @@ const BrokersPage = () => {
   const [statementText, setStatementText] = useState('');
 
   // ✅ Helper: Get expanded broker
-  // eslint-disable-next-line no-undef
-  const getExpandedBroker = useCallback(() => brokers?.find((b) => b.id === expandedBrokerId));
+  const getExpandedBroker = useCallback(() => 
+    brokers?.find((b) => b.id === expandedBrokerId)
+  , [brokers, expandedBrokerId]);
 
-  /// ✅ FIXED: Normalize phone before saving
-const handleAddBroker = () => {
-  if (!newBroker.name?.trim()) {
-    toast.error('Broker name is required');
-    return;
-  }
-  
-  // ✅ Normalize phone to 07XX format for storage
-  let normalizedPhone = newBroker.phone?.trim().replace(/\D/g, '') || '';
-  if (normalizedPhone.startsWith('254') && normalizedPhone.length === 12) {
-    normalizedPhone = '0' + normalizedPhone.slice(3);
-  } else if (normalizedPhone.length === 9 && normalizedPhone.startsWith('7')) {
-    normalizedPhone = '0' + normalizedPhone;
-  }
-  
-  addBroker({
-    name: newBroker.name.trim(),
-    phone: normalizedPhone, // ✅ Save as 07XX
-    area: newBroker.area?.trim() || '',
-    opening_balance: Number(newBroker.opening_balance) || 0,
-  });
-  
-  toast.success('Broker added successfully!');
-  setIsAddBrokerOpen(false);
-  setNewBroker({ name: '', phone: '', area: '', opening_balance: 0 });
-};
+  // ✅ Normalize phone before saving
+  const handleAddBroker = () => {
+    if (!newBroker.name?.trim()) {
+      toast.error('Broker name is required');
+      return;
+    }
+    
+    let normalizedPhone = newBroker.phone?.trim().replace(/\D/g, '') || '';
+    if (normalizedPhone.startsWith('254') && normalizedPhone.length === 12) {
+      normalizedPhone = '0' + normalizedPhone.slice(3);
+    } else if (normalizedPhone.length === 9 && normalizedPhone.startsWith('7')) {
+      normalizedPhone = '0' + normalizedPhone;
+    }
+    
+    addBroker({
+      name: newBroker.name.trim(),
+      phone: normalizedPhone,
+      area: newBroker.area?.trim() || '',
+      opening_balance: Number(newBroker.opening_balance) || 0,
+    });
+    
+    toast.success('Broker added successfully!');
+    setIsAddBrokerOpen(false);
+    setNewBroker({ name: '', phone: '', area: '', opening_balance: 0 });
+  };
 
   // ✅ Handle Add/Edit Ledger Entry
   const handleAddEntry = () => {
@@ -156,13 +157,11 @@ const handleAddBroker = () => {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
-    // Filter entries from last 7 days
     const recentEntries = (broker.broker_ledger || []).filter(entry => {
       const entryDate = new Date(entry.date || entry.created_at);
       return entryDate >= sevenDaysAgo;
     }).sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
 
-    // Build statement text
     let text = `═══════════════════════════════════════\n`;
     text += `     🧊 ARCTIC COOLERS LTD\n`;
     text += `     Broker Statement\n`;
@@ -206,51 +205,21 @@ const handleAddBroker = () => {
     setIsStatementOpen(true);
   };
 
-  // ✅ FIXED: WhatsApp send with proper phone formatting
-const sendWhatsApp = () => {
-  try {
-    const broker = getExpandedBroker();
-    if (!broker) {
-      toast.error('No broker selected');
-      return;
-    }
-    
-    if (!statementText) {
-      toast.error('Please generate a statement first');
-      return;
-    }
-    
-    const encodedText = encodeURIComponent(statementText);
-    
-    // ✅ Use utility for phone formatting
-    let cleanPhone = formatPhoneForWhatsApp(broker.phone);
-    
-    if (!cleanPhone || cleanPhone.length < 10) {
-      toast.error('Invalid phone number. Please update broker contact.');
-      return;
-    }
-    
-    // ✅ FIXED: No extra spaces in URL
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
-    
-    console.log('📱 Opening WhatsApp:', whatsappUrl); // Debug log
-    
-    const newWindow = window.open(whatsappUrl, '_blank');
-    
-    if (!newWindow) {
-      toast.error('Could not open WhatsApp. Please allow pop-ups for this site.');
-      return;
-    }
-    
-    toast.success('Opening WhatsApp...');
-  } catch (error) {
-    console.error('WhatsApp send error:', error);
-    toast.error('Failed to send statement. Please try again.');
-  }
-};
-      const encodedText = encodeURIComponent(statementText);
+  // ✅ Send statement via WhatsApp - FIXED
+  const sendWhatsApp = () => {
+    try {
+      const broker = getExpandedBroker();
+      if (!broker) {
+        toast.error('No broker selected');
+        return;
+      }
       
-      // ✅ FIXED: Clean phone using utility
+      if (!statementText) {
+        toast.error('Please generate a statement first');
+        return;
+      }
+      
+      const encodedText = encodeURIComponent(statementText);
       let cleanPhone = formatPhoneForWhatsApp(broker.phone);
       
       if (!cleanPhone || cleanPhone.length < 10) {
@@ -261,7 +230,6 @@ const sendWhatsApp = () => {
       // ✅ FIXED: Removed extra spaces in URL
       const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedText}`;
       
-      // Open WhatsApp
       const newWindow = window.open(whatsappUrl, '_blank');
       
       if (!newWindow) {
@@ -270,26 +238,13 @@ const sendWhatsApp = () => {
       }
       
       toast.success('Opening WhatsApp...');
-    }   (error) {
+    } catch (error) {
       console.error('WhatsApp send error:', error);
       toast.error('Failed to send statement. Please try again.');
     }
-  
-
-  // ✅ Close Entry Modal
-  const handleCloseEntryModal = () => {
-    setIsAddEntryOpen(false);
-    setEditingEntry(null);
-    setNewEntry({ 
-      date: new Date().toISOString().split('T')[0], 
-      bottles_taken: 0, 
-      amount: 0, 
-      amount_paid: 0 
-    });
   };
 
   // ✅ Calculate live balance preview for entry form
-   
   const getLiveBalancePreview = useMemo(() => {
     const broker = getExpandedBroker();
     if (!broker) return 0;
@@ -302,7 +257,7 @@ const sendWhatsApp = () => {
     const paid = Number(newEntry.amount_paid) || 0;
     
     return prevBalance + amount - paid;
-  }, [getExpandedBroker, editingEntry, calculateBrokerBalance, newEntry.amount, newEntry.amount_paid]);
+  }, [brokers, expandedBrokerId, editingEntry, calculateBrokerBalance, newEntry.amount, newEntry.amount_paid]);
 
   // ✅ Safe stats calculations
   const totalBrokers = brokers?.length || 0;
@@ -335,7 +290,6 @@ const sendWhatsApp = () => {
       <header className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-6 text-white shadow-md sticky top-0 z-30">
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* Back Button */}
             <Link
               to="/"
               className="flex items-center gap-2 rounded-lg bg-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/30 transition-colors"
@@ -656,7 +610,7 @@ const sendWhatsApp = () => {
         </div>
       )}
 
-      {/* Add/Edit Entry Modal */}
+      {/* Add/Edit Entry Modal - FIXED close button */}
       {isAddEntryOpen && expandedBroker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-[#FFFBF0] p-6 shadow-xl border border-amber-200">
@@ -664,8 +618,12 @@ const sendWhatsApp = () => {
               <h2 className="text-lg font-bold text-gray-800">
                 {editingEntry ? '✏️ Edit Entry' : '➕ Add Ledger Entry'}
               </h2>
+              {/* ✅ FIXED: Replaced undefined handleCloseEntryModal with inline handler */}
               <button
-                onClick={handleCloseEntryModal}
+                onClick={() => {
+                  setIsAddEntryOpen(false);
+                  setEditingEntry(null);
+                }}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -675,17 +633,13 @@ const sendWhatsApp = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Previous Balance Display */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  Previous Balance
-                </label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Previous Balance</label>
                 <div className="w-full rounded-lg bg-blue-50 px-3 py-2.5 text-gray-700 border border-blue-200 font-medium">
                   {formatKSH(calculateBrokerBalance(expandedBroker) || 0)}
                 </div>
               </div>
 
-              {/* Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date <span className="text-red-500">*</span>
@@ -699,7 +653,6 @@ const sendWhatsApp = () => {
                 />
               </div>
 
-              {/* Auto Day Name */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Day</label>
                 <div className="w-full rounded-lg bg-amber-50 px-3 py-2.5 text-gray-700 border border-amber-200 font-medium">
@@ -707,11 +660,8 @@ const sendWhatsApp = () => {
                 </div>
               </div>
 
-              {/* Bottles Taken */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bottles Taken (Reference)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Bottles Taken (Reference)</label>
                 <input
                   type="number"
                   min="0"
@@ -722,7 +672,6 @@ const sendWhatsApp = () => {
                 />
               </div>
 
-              {/* Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Amount (KSh) <span className="text-red-500">*</span>
@@ -739,11 +688,8 @@ const sendWhatsApp = () => {
                 />
               </div>
 
-              {/* Amount Paid */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Amount Paid (KSh)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount Paid (KSh)</label>
                 <input
                   type="number"
                   min="0"
@@ -755,7 +701,6 @@ const sendWhatsApp = () => {
                 />
               </div>
 
-              {/* Live Balance Preview */}
               <div className="rounded-lg bg-green-50 p-4 border border-green-200">
                 <p className="text-xs text-gray-500 font-medium">New Balance (Live Preview)</p>
                 <p className="text-2xl font-bold text-green-700 mt-1">
@@ -830,9 +775,7 @@ const sendWhatsApp = () => {
           from { opacity: 0; transform: translateY(-8px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .animate-fadeIn {
-          animation: fadeIn 0.25s ease-out;
-        }
+        .animate-fadeIn { animation: fadeIn 0.25s ease-out; }
       `}</style>
     </div>
   );

@@ -1,8 +1,8 @@
+// src/modules/admin/AdminPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
-import InviteUser from './InviteUser'; // ✅ Ensure this file exists in the same folder
 
 const AdminPage = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -42,7 +42,7 @@ const AdminPage = () => {
     checkAdminAccess();
   }, [navigate]);
 
-  // ✅ 2. Load Pending Users
+  // ✅ 2. Load Pending Users (with graceful error handling)
   useEffect(() => {
     if (!isAdmin) return;
     loadPendingUsers();
@@ -57,11 +57,20 @@ const AdminPage = () => {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      // ✅ Handle "table not found" gracefully
+      if (error) {
+        if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+          console.warn('⚠️ user_approvals table not found, showing empty list');
+          setPendingUsers([]);
+          return;
+        }
+        throw error;
+      }
       setPendingUsers(data || []);
-    // eslint-disable-next-line no-unused-vars
     } catch (error) {
+      console.error('Failed to load pending users:', error);
       toast.error('Failed to load pending users');
+      setPendingUsers([]); // Fallback to empty list
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +100,7 @@ const AdminPage = () => {
   };
 
   const handleReject = async () => {
+    if (!selectedUser) return;
     setIsProcessing(selectedUser.id);
     try {
       const { error } = await supabase
@@ -105,6 +115,8 @@ const AdminPage = () => {
       if (error) throw error;
       toast.success(`❌ Rejected`);
       setShowRejectModal(false);
+      setRejectionReason('');
+      setSelectedUser(null);
       loadPendingUsers();
     } catch (error) {
       toast.error(error.message);
@@ -133,15 +145,10 @@ const AdminPage = () => {
       </header>
 
       <main className="mx-auto max-w-7xl p-6 lg:p-8">
-        {/* TOP SECTION: Invites & Stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+        {/* TOP SECTION: Stats Only (InviteUser removed) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
           
-          {/* 1. The Invite Component (Newly Integrated) */}
-          <div className="lg:col-span-1">
-            <InviteUser />
-          </div>
-
-          {/* 2. Stats Cards */}
+          {/* Stats Cards - Now full width */}
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-center">
               <p className="text-slate-500 font-medium">Waiting for Approval</p>
@@ -192,10 +199,11 @@ const AdminPage = () => {
                             disabled={isProcessing === user.id}
                             className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95"
                           >
-                            Approve
+                            {isProcessing === user.id ? 'Processing...' : 'Approve'}
                           </button>
                           <button 
                             onClick={() => { setSelectedUser(user); setShowRejectModal(true); }}
+                            disabled={isProcessing === user.id}
                             className="bg-white border border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 px-5 py-2 rounded-xl text-sm font-bold transition-all"
                           >
                             Reject
@@ -212,11 +220,11 @@ const AdminPage = () => {
       </main>
 
       {/* Reject Modal */}
-      {showRejectModal && (
+      {showRejectModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
             <h3 className="text-2xl font-bold text-slate-800 mb-2">Deny Access</h3>
-            <p className="text-slate-500 mb-6">Explain why {selectedUser?.email} is being rejected.</p>
+            <p className="text-slate-500 mb-6">Explain why {selectedUser.email} is being rejected.</p>
             <textarea
               className="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-red-500 outline-none mb-6"
               rows="3"
@@ -225,8 +233,19 @@ const AdminPage = () => {
               onChange={(e) => setRejectionReason(e.target.value)}
             />
             <div className="flex gap-4">
-              <button onClick={() => setShowRejectModal(false)} className="flex-1 py-3 text-slate-500 font-bold">Cancel</button>
-              <button onClick={handleReject} className="flex-1 bg-red-600 text-white rounded-2xl py-3 font-bold shadow-lg shadow-red-200">Confirm Reject</button>
+              <button 
+                onClick={() => { setShowRejectModal(false); setSelectedUser(null); setRejectionReason(''); }} 
+                className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleReject} 
+                disabled={isProcessing === selectedUser.id}
+                className="flex-1 bg-red-600 text-white rounded-2xl py-3 font-bold shadow-lg shadow-red-200 hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {isProcessing === selectedUser.id ? 'Processing...' : 'Confirm Reject'}
+              </button>
             </div>
           </div>
         </div>

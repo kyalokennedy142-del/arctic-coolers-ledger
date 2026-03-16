@@ -16,4 +16,17 @@ export const supabase = supabaseUrl && supabaseKey
     })
   : null;
 
+  // ✅ Add at the END of supabaseClient.js, before export
+
+// Handle auth state changes gracefully
+supabase.auth.onAuthStateChange((event) => {
+  // Only log important events
+  if (['SIGNED_IN', 'SIGNED_OUT', 'USER_UPDATED'].includes(event)) {
+    console.log(`🔐 Auth event: ${event}`);
+  }
+  // Ignore TOKEN_REFRESHED errors when no user is logged in
+});
+
+
+
 export default supabase;
