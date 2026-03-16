@@ -1,27 +1,53 @@
+// src/App.jsx
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+
+/**
+ * Main App Layout Component
+ * 
+ * This component serves as the root layout for all routed pages.
+ * It provides:
+ * - A consistent background and minimum height for the viewport
+ * - The Outlet for rendering child routes from react-router-dom
+ * - A global Toaster for displaying notifications anywhere in the app
+ * 
+ * Note: This component should NOT contain the ReactDOM.render logic.
+ * That belongs in src/main.jsx (or src/index.jsx).
+ */
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
-      <h1 className="text-4xl font-bold text-blue-600">
-        ARCTIC COOLERS LEDGER
-      </h1>
+    <div className="min-h-screen bg-gray-50">
+      {/* Outlet renders the matched child route component */}
+      <Outlet />
+      
+      {/* Global toast notification container */}
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+          success: {
+            duration: 3000,
+            iconTheme: {
+              primary: '#22c55e',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            duration: 5000,
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
     </div>
-  )
-// At the very top of your component return:
-useEffect(() => {
-  // Add a visible marker to the page
-  const marker = document.createElement('div');
-  marker.id = 'app-mounted-marker';
-  marker.style.cssText = 'position:fixed;top:0;left:0;background:#0f0;color:#000;padding:5px;font-size:12px;z-index:9999;';
-  marker.textContent = '✅ APP MOUNTED - ' + new Date().toLocaleTimeString();
-  document.body.appendChild(marker);
-  
-  console.log('🚀 App component mounted!');
-  
-  return () => {
-    marker.remove();
-  };
-}, []);
-
+  );
 }
 
-export default App
+export default App;

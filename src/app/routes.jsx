@@ -1,69 +1,112 @@
-import { createBrowserRouter } from "react-router-dom";
+// src/app/routes.jsx
+import React from 'react'; // ✅ Required for JSX in .jsx files
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import App from '../App';
+import AuthGuard from '../lib/AuthGuard';
 
-// Layout & Auth
-import Layout from "./layout";
-import LoginPage from "../modules/auth/LoginPage";
-import SignUpPage from "../modules/auth/SignUpPage";
-import AuthGuard from "../lib/AuthGuard";
+// ✅ Page imports - verify each file exists at this path
+import LoginPage from '../modules/auth/LoginPage';
+import SignupPage from '../modules/auth/SignUppage';
+import DashboardPage from '../modules/dashboard/DashboardPage';
+import CustomersPage from '../modules/customers/CustomersPage';
+import BrokersPage from '../modules/brokers/BrokersPage';
+import CreditStatementsPage from '../modules/credit-statements/CreditStatementsPage';
+import PurchasesPage from '../modules/purchases/PurchasesPage';
+import RemindersPage from '../modules/reminders/RemindersPage';
+import AdminPage from '../modules/admin/AdminPage';
 
-// Pages
-import DashboardPage from "../modules/dashboard/DashboardPage";
-import CustomersPage from "../modules/customers/CustomersPage";
-import TransactionsPage from "../modules/transactions/TransactionsPage";
-import RemindersPage from "../modules/reminders/RemindersPage";
-import PurchasesPage from "../modules/purchases/PurchasesPage";
-import BrokersPage from "../modules/brokers/BrokersPage";
-import AdminPage from "../modules/admin/AdminPage";
+// ✅ Fallback component for missing pages
+const FallbackPage = ({ message = 'Page not found' }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center p-8">
+      <h1 className="text-2xl font-bold text-gray-800 mb-2">404</h1>
+      <p className="text-gray-600">{message}</p>
+      <a href="/" className="mt-4 text-blue-600 hover:underline">Return to Dashboard</a>
+    </div>
+  </div>
+);
 
 const router = createBrowserRouter([
-  // ✅ Public routes (no auth required)
+  // 🔐 Protected routes (require authentication)
   {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/signup",
-    element: <SignUpPage />,
-  },
-  
-  // ✅ Protected routes (require login via AuthGuard)
-  {
-    path: "/",
+    path: '/',
     element: (
       <AuthGuard>
-        <Layout />
+        <App />
       </AuthGuard>
     ),
+    errorElement: <FallbackPage message="Protected route error" />,
     children: [
-      {
-        index: true,
+      { 
+        index: true, 
         element: <DashboardPage />,
+        errorElement: <FallbackPage message="Dashboard failed to load" />
       },
-      {
-        path: "customers",
+      { 
+        path: 'customers', 
         element: <CustomersPage />,
+        errorElement: <FallbackPage message="Customers page failed to load" />
       },
-      {
-        path: "transactions",
-        element: <TransactionsPage />,
-      },
-      {
-        path: "reminders",
-        element: <RemindersPage />,
-      },
-      {
-        path: "purchases",
-        element: <PurchasesPage />,
-      },
-      {
-        path: "brokers",
+      { 
+        path: 'brokers', 
         element: <BrokersPage />,
+        errorElement: <FallbackPage message="Brokers page failed to load" />
       },
-      {
-        path: "admin",
+      { 
+        path: 'transactions', 
+        element: <CreditStatementsPage />,
+        errorElement: <FallbackPage message="Statements page failed to load" />
+      },
+      { 
+        path: 'purchases', 
+        element: <PurchasesPage />,
+        errorElement: <FallbackPage message="Purchases page failed to load" />
+      },
+      { 
+        path: 'reminders', 
+        element: <RemindersPage />,
+        errorElement: <FallbackPage message="Reminders page failed to load" />
+      },
+      { 
+        path: 'admin', 
         element: <AdminPage />,
+        errorElement: <FallbackPage message="Admin page failed to load" />
       },
     ],
+  },
+  
+  // 🔓 Public auth routes (NO AuthGuard)
+  { 
+    path: '/login', 
+    element: <LoginPage />,
+    errorElement: <FallbackPage message="Login page failed to load" />
+  },
+  { 
+    path: '/signup', 
+    element: <SignupPage />,
+    errorElement: <FallbackPage message="Signup page failed to load" />
+  },
+  
+  // Optional: Password reset route
+  { 
+    path: '/reset-password', 
+    element: (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-xl p-8 max-w-md text-center shadow-lg">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Reset Password</h1>
+          <p className="text-gray-600">Check your email for reset instructions</p>
+          <a href="/login" className="mt-4 inline-block text-blue-600 hover:underline">
+            Return to Login
+          </a>
+        </div>
+      </div>
+    )
+  },
+  
+  // 🔄 Catch-all: Redirect unknown routes to dashboard
+  { 
+    path: '*', 
+    element: <Navigate to="/" replace /> 
   },
 ]);
 

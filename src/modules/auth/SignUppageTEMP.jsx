@@ -1,16 +1,30 @@
+// src/modules/auth/SignupPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
-const SignUpPage = () => {
+// ✅ Helper component for password requirements (defined outside main component)
+const ReqItem = ({ met, text, className = '' }) => (
+  <div className={`flex items-center gap-2 text-xs ${className}`}>
+    <svg className={`h-4 w-4 flex-shrink-0 ${met ? 'text-green-500' : 'text-gray-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+    <span className={met ? 'text-green-700' : 'text-gray-500'}>{text}</span>
+  </div>
+);
+
+const SignupPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [confirmError, setConfirmError] = useState('');
+  
+  // ✅ Password strength state
   const [passwordStrength, setPasswordStrength] = useState({
     score: 0,
     requirements: {
@@ -21,9 +35,10 @@ const SignUpPage = () => {
       hasSpecial: false,
     }
   });
+  
   const navigate = useNavigate();
 
-  // Check if already logged in
+  // ✅ Check if already logged in (inside component)
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -36,8 +51,16 @@ const SignUpPage = () => {
     checkSession();
   }, [navigate]);
 
-  // Calculate password strength
+  // ✅ Calculate password strength (inside component)
   useEffect(() => {
+    if (!password) {
+      setPasswordStrength({ score: 0, requirements: {
+        minLength: false, hasUppercase: false, hasLowercase: false,
+        hasNumber: false, hasSpecial: false
+      }});
+      return;
+    }
+    
     const requirements = {
       minLength: password.length >= 8,
       hasUppercase: /[A-Z]/.test(password),
@@ -49,7 +72,7 @@ const SignUpPage = () => {
     setPasswordStrength({ score, requirements });
   }, [password]);
 
-  // Smart validation: Only show error after user types in confirm field
+  // ✅ Smart validation for confirm password (inside component)
   useEffect(() => {
     if (confirmPassword.length > 0) {
       setConfirmError(password !== confirmPassword ? 'Passwords do not match!' : '');
@@ -58,10 +81,38 @@ const SignUpPage = () => {
     }
   }, [password, confirmPassword]);
 
-  const handleSignUp = async (e) => {
+  // ✅ Form validation helper
+  const isFormValid = () => {
+    return (
+      email.trim() &&
+      name.trim() &&
+      password &&
+      confirmPassword &&
+      password === confirmPassword &&
+      passwordStrength.score >= 4 &&
+      !confirmError &&
+      !isLoading
+    );
+  };
+
+  // ✅ Password strength helpers
+  const getStrengthColor = () => {
+    if (passwordStrength.score <= 2) return 'bg-red-500';
+    if (passwordStrength.score <= 3) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+  
+  const getStrengthText = () => {
+    if (passwordStrength.score <= 2) return 'Weak';
+    if (passwordStrength.score <= 3) return 'Medium';
+    return 'Strong';
+  };
+
+  // ✅ Handle signup submission
+  const handleSignup = async (e) => {
     e.preventDefault();
     
-    // Final validation
+    // Final validation before API call
     if (password !== confirmPassword) {
       setConfirmError('Passwords do not match!');
       toast.error('Passwords do not match!');
@@ -71,71 +122,68 @@ const SignUpPage = () => {
       toast.error('Password is too weak. Please meet all requirements.');
       return;
     }
+    if (!email.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (name.trim().length < 2) {
+      toast.error('Please enter your full name');
+      return;
+    }
 
     setIsLoading(true);
 
     try {
-      // ✅ STANDARD SIGNUP: Just create the account
-      const { error: authError } = await supabase.auth.signUp({
+      // ✅ Supabase sign up with proper destructuring
+      const { data: { user }, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password: password,
         options: {
-          // User will receive confirmation email, then can login
-          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            name: name.trim(),
+            email: email.trim().toLowerCase()
+          },
+          emailRedirectTo: `${window.location.origin}/login`
         },
       });
 
       if (authError) throw authError;
 
-      toast.success('Account created! Please check your email to confirm your account.');
+      // Check if user needs email confirmation
+      if (user?.identities?.length === 0) {
+        toast.error('This email is already registered. Please sign in instead.');
+        navigate('/login');
+        return;
+      }
+
+      toast.success('Account created! Please check your email to confirm.');
       
       // Clear form
       setEmail('');
       setPassword('');
       setConfirmPassword('');
+      setName('');
       setConfirmError('');
       
-      // Redirect to login after 3 seconds
+      // Redirect to login after delay
       setTimeout(() => navigate('/login'), 3000);
       
     } catch (error) {
-      console.error('Sign up error:', error);
+      console.error('Signup error:', error);
       
       if (error.message?.includes('User already registered')) {
-        toast.error('This email is already registered. Please login instead.');
-      } else if (error.message?.includes('Weak password')) {
-        toast.error('Password must be at least 8 characters with mixed case, numbers, and symbols.');
+        toast.error('An account with this email already exists.');
+      } else if (error.message?.includes('Password should be at least') || 
+                error.message?.includes('Weak password')) {
+        toast.error('Password must be at least 8 characters with uppercase, lowercase, number, and symbol.');
+      } else if (error.message?.includes('Invalid email')) {
+        toast.error('Please enter a valid email address.');
       } else {
-        toast.error('Sign up failed. Please try again.');
+        toast.error('Signup failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Helper: Password strength display
-  const getStrengthColor = () => {
-    if (passwordStrength.score <= 2) return 'bg-red-500';
-    if (passwordStrength.score <= 3) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
-  const getStrengthText = () => {
-    if (passwordStrength.score <= 2) return 'Weak';
-    if (passwordStrength.score <= 3) return 'Medium';
-    return 'Strong';
-  };
-
-  // Helper: Is form valid?
-  const isFormValid = () => {
-    return (
-      email &&
-      password &&
-      confirmPassword &&
-      password === confirmPassword &&
-      passwordStrength.score >= 4 &&
-      !confirmError &&
-      !isLoading
-    );
   };
 
   return (
@@ -146,17 +194,41 @@ const SignUpPage = () => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-md rounded-2xl mb-4">
             <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-white">Create Account</h1>
           <p className="text-blue-100 mt-2">Join Arctic Coolers Ledger</p>
         </div>
 
-        {/* Sign-Up Card */}
+        {/* Signup Card */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8">
-          <form onSubmit={handleSignUp} className="space-y-6" noValidate>
+          <form onSubmit={handleSignup} className="space-y-5" noValidate>
             
+            {/* Name Field */}
+            <div>
+              <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <div className="relative">
+                <input
+                  id="name"
+                  name="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-12 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-blue-50/50"
+                  placeholder="John Doe"
+                  required
+                  disabled={isLoading}
+                  autoComplete="name"
+                />
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+            </div>
+
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -207,6 +279,7 @@ const SignUpPage = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
                 >
                   {showPassword ? '🙈' : '👁️'}
                 </button>
@@ -243,7 +316,7 @@ const SignUpPage = () => {
             </div>
 
             {/* Confirm Password Field */}
-            <div className="animate-fade-in">
+            <div>
               <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
                 Confirm Password
               </label>
@@ -265,19 +338,20 @@ const SignUpPage = () => {
                   autoComplete="new-password"
                 />
                 <svg className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
                 >
                   {showConfirmPassword ? '🙈' : '👁️'}
                 </button>
               </div>
               
-              {/* Error message - only shows after typing */}
+              {/* Error message */}
               {confirmError && (
                 <p className="text-red-500 text-xs mt-1 animate-fade-in flex items-center gap-1">
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -287,7 +361,7 @@ const SignUpPage = () => {
                 </p>
               )}
               
-              {/* Success indicator when passwords match */}
+              {/* Success indicator */}
               {confirmPassword && !confirmError && password === confirmPassword && (
                 <p className="text-green-500 text-xs mt-1 animate-fade-in flex items-center gap-1">
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
@@ -298,7 +372,7 @@ const SignUpPage = () => {
               )}
             </div>
 
-            {/* Sign-Up Button */}
+            {/* Signup Button */}
             <button
               type="submit"
               disabled={!isFormValid()}
@@ -338,14 +412,4 @@ const SignUpPage = () => {
   );
 };
 
-// Helper component for password requirements
-const ReqItem = ({ met, text, className = '' }) => (
-  <div className={`flex items-center gap-2 text-xs ${className}`}>
-    <svg className={`h-4 w-4 ${met ? 'text-green-500' : 'text-gray-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-    </svg>
-    <span className={met ? 'text-green-700' : 'text-gray-500'}>{text}</span>
-  </div>
-);
-
-export default SignUpPage;
+export default SignupPage;
