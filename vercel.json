@@ -24,8 +24,16 @@
         {
           "key": "Strict-Transport-Security",
           "value": "max-age=31536000; includeSubDomains"
-        }
+        },
+        
+{
+  "buildCommand": "rm -rf node_modules/.vite dist && npm run build",
+  "installCommand": "npm install",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
       ]
     }
   ]
 }
+
