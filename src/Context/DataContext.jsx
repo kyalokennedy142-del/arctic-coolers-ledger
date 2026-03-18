@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import * as React from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseReady } from '../lib/supabaseClient';
 
 const DataContext = createContext(null);
@@ -46,7 +47,7 @@ export function DataProvider({ children }) {
             return data || [];
           } catch { return []; }
         };
-        const [c, b, p] = await Promise.all([fetchTable('customers'), fetchTable('brokers'), fetchTable('urchases')]);
+        const [c, b, p] = await Promise.all([fetchTable('customers'), fetchTable('brokers'), fetchTable('purchases')]);
         if (mounted) {
           setCustomers(c); setBrokers(b); setPurchases(p);
           localStorage.setItem('arctic-data', JSON.stringify({ customers: c, brokers: b, purchases: p }));

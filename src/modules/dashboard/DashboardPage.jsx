@@ -1,6 +1,6 @@
 // src/modules/dashboard/DashboardPage.jsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { useData } from '../../Context/DataContext';
+import * as React from 'react';
+import { useState, useEffect, useMemo } from 'react';import { useData } from '../../Context/DataContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
