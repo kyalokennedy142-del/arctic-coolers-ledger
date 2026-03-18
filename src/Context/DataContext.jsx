@@ -1,9 +1,9 @@
-// src/context/DataContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, isSupabaseReady } from '../lib/supabaseClient';
 
 const DataContext = createContext(null);
 
+// ✅ NAMED EXPORT - This is what DashboardPage.jsx imports
 // eslint-disable-next-line react-refresh/only-export-components
 export const useData = () => {
   const context = useContext(DataContext);
@@ -13,99 +13,59 @@ export const useData = () => {
   return context;
 };
 
+// ✅ NAMED EXPORT - This is what main.jsx imports
 export function DataProvider({ children }) {
   const [customers, setCustomers] = useState([]);
   const [brokers, setBrokers] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load data on mount
   useEffect(() => {
     let mounted = true;
-
     const loadData = async () => {
-      // 1. Try localStorage first (fast)
+      // LocalStorage first
       try {
         const saved = localStorage.getItem('arctic-data');
         if (saved && mounted) {
-          const data = JSON.parse(saved);
-          setCustomers(data.customers || []);
-          setBrokers(data.brokers || []);
-          setPurchases(data.purchases || []);
+          const d = JSON.parse(saved);
+          setCustomers(d.customers || []);
+          setBrokers(d.brokers || []);
+          setPurchases(d.purchases || []);
         }
-      } catch (e) {
-        console.warn('localStorage parse error:', e);
-      }
+      } catch (e) { console.warn('localStorage:', e); }
 
-      // 2. Skip Supabase if not ready
-      if (!isSupabaseReady()) {
-        if (mounted) setLoading(false);
-        return;
-      }
+      // Skip if no Supabase
+      if (!isSupabaseReady()) { if (mounted) setLoading(false); return; }
 
-      // 3. Fetch from Supabase (best effort)
+      // Fetch from Supabase
       try {
         const fetchTable = async (table) => {
           try {
-            const { data, error } = await supabase
-              .from(table)
-              .select('*')
-              .order('created_at', { ascending: false });
+            const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];
-          } catch {
-            return [];
-          }
+          } catch { return []; }
         };
-
-        const [c, b, p] = await Promise.all([
-          fetchTable('customers'),
-          fetchTable('brokers'),
-          fetchTable('purchases')
-        ]);
-
+        const [c, b, p] = await Promise.all([fetchTable('customers'), fetchTable('brokers'), fetchTable('urchases')]);
         if (mounted) {
-          setCustomers(c);
-          setBrokers(b);
-          setPurchases(p);
-          // Backup to localStorage
+          setCustomers(c); setBrokers(b); setPurchases(p);
           localStorage.setItem('arctic-data', JSON.stringify({ customers: c, brokers: b, purchases: p }));
         }
-      } catch (err) {
-        console.warn('Supabase fetch error:', err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
+      } catch (err) { console.warn('Supabase:', err); }
+      finally { if (mounted) setLoading(false); }
     };
-
     loadData();
     return () => { mounted = false; };
   }, []);
 
-  // Auto-save to localStorage
+  // Auto-save
   useEffect(() => {
-    if (!loading) {
-      localStorage.setItem('arctic-data', JSON.stringify({ customers, brokers, purchases }));
-    }
+    if (!loading) localStorage.setItem('arctic-data', JSON.stringify({ customers, brokers, purchases }));
   }, [customers, brokers, purchases, loading]);
 
-  // Context value
-  const value = {
-    customers,
-    brokers,
-    purchases,
-    loading,
-    setCustomers,
-    setBrokers,
-    setPurchases,
-    setLoading
-  };
-
-  return (
-    <DataContext.Provider value={value}>
-      {children}
-    </DataContext.Provider>
-  );
+  const value = { customers, brokers, purchases, loading, setCustomers, setBrokers, setPurchases, setLoading };
+  return React.createElement(DataContext.Provider, { value }, children);
 }
 
+// Default export (optional)
 export default DataContext;
