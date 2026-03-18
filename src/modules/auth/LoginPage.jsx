@@ -1,6 +1,8 @@
+ 
+// src/modules/auth/LoginPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase, isSupabaseReady, getSupabaseErrorHelp } from '../../lib/supabaseClient';
 import toast from 'react-hot-toast';
 
 const LoginPage = () => {
@@ -8,54 +10,127 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Check if already logged in
+  // ✅ Optimized: Fast session check with timeout guard (prevents slow loading)
   useEffect(() => {
+    let isMounted = true;
+    
+    // Skip entirely if Supabase isn't configured
+    if (!isSupabaseReady()) {
+      console.warn('⚠️ Supabase not configured - skipping session check');
+      return;
+    }
+    
     const checkSession = async () => {
+      // Guard: Add timeout to prevent infinite hang on 401
+      const timeout = setTimeout(() => {
+        if (isMounted) {
+          console.warn('⏱️ Session check timed out - proceeding to login form');
+        }
+      }, 3000);
+      
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
+        const { data, error } = await supabase.auth.getSession();
+        clearTimeout(timeout);
+        
+        if (!isMounted) return;
+        
+        if (error) {
+          // Don't block on auth errors - let user try to login manually
+          console.warn('⚠️ Session check error (non-blocking):', error.message);
+          return;
+        }
+        
+        if (data?.session) {
+          console.log('✅ Valid session found, redirecting...');
           navigate('/');
         }
       } catch (error) {
-        console.error('Session check error:', error);
+        clearTimeout(timeout);
+        if (!isMounted) return;
+        console.warn('⚠️ Session check exception (non-blocking):', error);
       }
     };
+    
     checkSession();
+    
+    return () => { 
+      isMounted = false; 
+    };
   }, [navigate]);
 
+  // ✅ Handle login submission with fast-fail config check
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // ⚡ Fast fail: Check config before attempting login (prevents hanging)
+    if (!isSupabaseReady()) {
+      toast.error('⚙️ Configuration error: Supabase not initialized');
+      console.error('🔧 Fix: Check .env.local has VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
+      console.log('🔐 Attempting login for:', email);
+      
       const { error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password: password,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Login error:', error);
+        
+        // ✅ Handle specific Supabase errors with helpful messages
+        const help = getSupabaseErrorHelp(error);
+        
+        if (help?.code === 'AUTH_401') {
+          toast.error('Authentication service error. Please try again later.');
+          console.error('🔧 Admin fix:', help.fix);
+          return;
+        }
+        
+        if (error.message?.includes('Invalid login credentials')) {
+          toast.error('Wrong email or password. Please try again.');
+        } else if (error.message?.includes('Email not confirmed')) {
+          toast.error('Please confirm your email first. Check your inbox!');
+        } else if (error.message?.includes('too many requests')) {
+          toast.error('Too many attempts. Please wait a moment and try again.');
+        } else {
+          toast.error('Login failed. Please try again.');
+        }
+        return;
+      }
 
+      // ✅ Success
       toast.success('Welcome back!');
       const from = location.state?.from?.pathname || '/';
       navigate(from, { replace: true });
       
     } catch (error) {
-      console.error('Login error:', error);
-      
-      if (error.message.includes('Invalid login credentials')) {
-        toast.error('Wrong email or password. Please try again.');
-      } else if (error.message.includes('Email not confirmed')) {
-        toast.error('Please confirm your email first. Check your inbox!');
-      } else {
-        toast.error('Login failed. Please try again.');
-      }
+      console.error('Unexpected login error:', error);
+      toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // ✅ Render loading state ONLY if Supabase not ready AND loading
+  if (!isSupabaseReady() && isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-white border-t-transparent mx-auto mb-4"></div>
+          <p>Initializing authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center p-4">
@@ -74,6 +149,15 @@ const LoginPage = () => {
 
         {/* Login Card */}
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-8">
+          
+          {/* Supabase Warning */}
+          {!isSupabaseReady() && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <p className="text-sm text-yellow-800 font-medium">⚠️ Authentication temporarily unavailable</p>
+              <p className="text-xs text-yellow-700 mt-1">Please contact your administrator if this persists.</p>
+            </div>
+          )}
+          
           <form onSubmit={handleLogin} className="space-y-6" noValidate>
             
             {/* Email Field */}
@@ -88,10 +172,10 @@ const LoginPage = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-12 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-12 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:bg-gray-50"
                   placeholder="you@example.com"
                   required
-                  disabled={isLoading}
+                  disabled={isLoading || !isSupabaseReady()}
                   autoComplete="email"
                   aria-label="Email address"
                 />
@@ -113,10 +197,10 @@ const LoginPage = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-12 pr-12 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 pl-12 pr-12 text-lg focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all disabled:bg-gray-50"
                   placeholder="••••••••"
                   required
-                  disabled={isLoading}
+                  disabled={isLoading || !isSupabaseReady()}
                   autoComplete="current-password"
                   aria-label="Password"
                 />
@@ -124,12 +208,14 @@ const LoginPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
                 
-                {/* Show/Hide Password Toggle */}
+                {/* Show/Hide Toggle */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  disabled={isLoading || !isSupabaseReady()}
+                  tabIndex={-1}
                 >
                   {showPassword ? (
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,8 +234,8 @@ const LoginPage = () => {
             {/* Login Button */}
             <button
               type="submit"
-              disabled={isLoading || !email || !password}
-              className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3.5 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              disabled={isLoading || !isSupabaseReady() || !email || !password}
+              className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3.5 rounded-xl font-semibold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -159,6 +245,8 @@ const LoginPage = () => {
                   </svg>
                   Signing in...
                 </span>
+              ) : !isSupabaseReady() ? (
+                'Service Unavailable'
               ) : (
                 'Sign In'
               )}
