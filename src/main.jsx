@@ -1,6 +1,16 @@
 // src/main.jsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+
+if (typeof window !== 'undefined') {
+  window.React = React;
+  window.useEffect = React.useEffect;
+  window.useState = React.useState;
+  window.useMemo = React.useMemo;
+  window.useContext = React.useContext;
+  window.createContext = React.createContext;
+}
+
 import { RouterProvider } from 'react-router-dom';
 import { DataProvider } from './Context/DataContext';
 import { AuthProvider } from './Context/AuthContext';
