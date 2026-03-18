@@ -1,8 +1,8 @@
-/* eslint-disable no-unused-vars */
+ 
 // src/modules/credit-statements/CreditStatementsPage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useData } from '../../context/DataContext';
+import { useData } from '../../Context/DataContext';
 import toast from 'react-hot-toast';
 import { formatKSH } from '../../lib/formatCurrency'; // ✅ Use shared utility
 
@@ -36,6 +36,7 @@ const CreditStatementsPage = () => {
         c.name?.toLowerCase().includes(customerName.toLowerCase())
       );
       if (matched) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setExpandedCustomer(matched.id);
         // Clean URL without refreshing
         window.history.replaceState({}, document.title, window.location.pathname);

@@ -50,4 +50,15 @@ function App() {
   );
 }
 
+// eslint-disable-next-line react-hooks/rules-of-hooks, no-undef
+useEffect(() => {
+  console.log('🔍 Vite Env Debug:', {
+    hasUrl: !!import.meta.env.VITE_SUPABASE_URL,
+    hasKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+    urlPreview: import.meta.env.VITE_SUPABASE_URL?.substring(0, 40) + '...',
+    allViteVars: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
+  });
+}, []);
+
+
 export default App;

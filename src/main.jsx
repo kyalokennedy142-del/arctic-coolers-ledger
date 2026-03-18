@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { DataProvider } from './Context/DataContext';
-import { AuthProvider } from './context/AuthContext'; // ✅ Now this file exists
+import { AuthProvider } from './Context/AuthContext'; // ✅ Now this file exists
 import router from './app/routes';
 import './index.css';
 
