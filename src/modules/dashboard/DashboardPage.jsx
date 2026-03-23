@@ -1,226 +1,70 @@
 // src/modules/dashboard/DashboardPage.jsx
-import * as React from 'react';
-import { useState, useEffect, useMemo } from 'react';import { useData } from '../../Context/DataContext';
+import React, { useState, useMemo } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabaseClient';
+import { formatKSH } from '../../utils/formatCurrency';
 import toast from 'react-hot-toast';
-import { formatKSH } from '../../lib/formatCurrency';
 
 const DashboardPage = () => {
-  const { customers, brokers, purchases, loading } = useData();
+  const { user, signOut, isAdmin } = useAuth();
+  const { customers, brokers, purchases, transactions, loading, error } = useData();
   const navigate = useNavigate();
-  
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [userRole, setUserRole] = useState('user');
-  const [roleLoading, setRoleLoading] = useState(true);
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const now = new Date();
-    return { year: now.getFullYear(), month: now.getMonth() };
-  });
 
-   // ✅ Load user role on mount
-  useEffect(() => {
-    const loadUserRole = async () => {
-      try {
-        setRoleLoading(true);
-        
-        // Check localStorage first
-        const storedRole = localStorage.getItem('user_role');
-        if (storedRole) {
-          setUserRole(storedRole);
-          setRoleLoading(false);
-          return;
-        }
-        
-        // Fallback: Check Supabase auth
-        // ✅ FIXED: Proper destructuring with 'data' key
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          const ADMIN_EMAIL = 'kyalokennedy142@gmail.com';
-          const role = user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user';
-          setUserRole(role);
-          localStorage.setItem('user_role', role);
-        }
-      } catch (error) {
-        console.warn('Could not load user role:', error);
-        setUserRole('user');
-      } finally {
-        setRoleLoading(false);
-      }
-    };
+  // ✅ Calculate stats from Supabase data
+  const stats = useMemo(() => {
+    const safeTxs = Array.isArray(transactions) ? transactions : [];
     
-    loadUserRole();
-  }, []);
-
-  // ✅ Helper: Check if date is in current month
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const isCurrentMonth = (dateString) => {
-    if (!dateString) return false;
-    const date = new Date(dateString);
-    return (
-      date.getFullYear() === currentMonth.year &&
-      date.getMonth() === currentMonth.month
-    );
-  };
-
-  // ✅ Calculate MONTHLY stats (not cumulative)
-  const monthlyStats = useMemo(() => {
-    if (!customers || !purchases) {
-      return {
-        monthlyCredit: 0,
-        monthlyPaid: 0,
-        monthlyOutstanding: 0
-      };
-    }
-
-    // Calculate monthly credit and paid from customer transactions
-    let monthlyCredit = 0;
-    let monthlyPaid = 0;
-
-    customers.forEach(customer => {
-      (customer.transactions || []).forEach(transaction => {
-        // Only count transactions from current month
-        if (isCurrentMonth(transaction.created_at || transaction.date)) {
-          const amount = Number(transaction.amount) || 0;
-          const type = transaction.transaction_type?.toLowerCase();
-          
-          if (type === 'credit') {
-            monthlyCredit += amount;
-          } else if (['payment', 'paid'].includes(type)) {
-            monthlyPaid += amount;
-          }
-        }
-      });
-    });
+    const totalCredit = safeTxs
+      .filter(t => t?.transaction_type?.toLowerCase() === 'credit')
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      
+    const totalPaid = safeTxs
+      .filter(t => ['payment', 'paid'].includes(t?.transaction_type?.toLowerCase()))
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
     return {
-      monthlyCredit,
-      monthlyPaid,
-      monthlyOutstanding: monthlyCredit - monthlyPaid
+      totalCustomers: Array.isArray(customers) ? customers.length : 0,
+      totalBrokers: Array.isArray(brokers) ? brokers.length : 0,
+      totalPurchases: Array.isArray(purchases) ? purchases.length : 0,
+      credit: totalCredit,
+      paid: totalPaid,
+      outstanding: totalCredit - totalPaid,
     };
-  }, [customers, purchases, isCurrentMonth]);
-
-  // ✅ Calculate CUMULATIVE stats (all-time)
-  const cumulativeStats = useMemo(() => {
-    if (!customers) {
-      return {
-        totalCredit: 0,
-        totalPaid: 0,
-        outstandingBalance: 0
-      };
-    }
-
-    let totalCredit = 0;
-    let totalPaid = 0;
-
-    customers.forEach(customer => {
-      (customer.transactions || []).forEach(transaction => {
-        const amount = Number(transaction.amount) || 0;
-        const type = transaction.transaction_type?.toLowerCase();
-        
-        if (type === 'credit') {
-          totalCredit += amount;
-        } else if (['payment', 'paid'].includes(type)) {
-          totalPaid += amount;
-        }
-      });
-    });
-
-    return {
-      totalCredit,
-      totalPaid,
-      outstandingBalance: totalCredit - totalPaid
-    };
-  }, [customers]);
-
-  // ✅ Safe getters with null checks
-  const totalCustomers = Array.isArray(customers) ? customers.length : 0;
-  const totalBrokers = Array.isArray(brokers) ? brokers.length : 0;
-  const totalPurchases = Array.isArray(purchases) ? purchases.length : 0;
-  
-  const customersOwing = useMemo(() => {
-    if (!Array.isArray(customers)) return 0;
-    
-    return customers.filter(customer => {
-      let balance = 0;
-      (customer.transactions || []).forEach(t => {
-        const amount = Number(t.amount) || 0;
-        const type = t.transaction_type?.toLowerCase();
-        if (type === 'credit') balance += amount;
-        if (['payment', 'paid'].includes(type)) balance -= amount;
-      });
-      return balance > 0;
-    }).length;
-  }, [customers]);
+  }, [customers, brokers, purchases, transactions]);
 
   // ✅ Handle logout
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
-      localStorage.removeItem('arctic-logged-in');
-      localStorage.removeItem('user_role');
+      await signOut();
       toast.success('Logged out successfully!');
       navigate('/login', { replace: true });
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast.error('Logout failed. Please try again.');
+    } catch (err) {
+      toast.error('Logout failed');
     }
-  };
-
-  // ✅ Change month view
-  const changeMonth = (direction) => {
-    setCurrentMonth(prev => {
-      let newMonth = prev.month + direction;
-      let newYear = prev.year;
-      
-      if (newMonth > 11) {
-        newMonth = 0;
-        newYear += 1;
-      } else if (newMonth < 0) {
-        newMonth = 11;
-        newYear -= 1;
-      }
-      
-      return { year: newYear, month: newMonth };
-    });
-  };
-
-  // ✅ Format month name for display
-  const getMonthName = (year, month) => {
-    return new Date(year, month).toLocaleDateString('en-GB', { 
-      month: 'long', 
-      year: 'numeric' 
-    });
   };
 
   // ✅ Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-white border-t-transparent mx-auto mb-4"></div>
-          <p className="text-white text-lg font-medium">Loading dashboard...</p>
+          <p className="text-white text-lg">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
   // ✅ Error state
-  if (!customers) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-xl">
-          <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Data Loading Error</h2>
-          <p className="text-gray-600 mb-6">Could not load customer data. Please try refreshing.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            Refresh Page
+          <p className="text-red-600 font-medium mb-2">⚠️ {error}</p>
+          <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Retry
           </button>
         </div>
       </div>
@@ -228,7 +72,7 @@ const DashboardPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-700 to-cyan-600 pb-12">
+    <div className="min-h-screen bg-linear-to-br from-blue-600 via-blue-700 to-cyan-600 pb-12">
       {/* Header */}
       <header className="bg-white/10 backdrop-blur-md border-b border-white/20 px-6 py-4 sticky top-0 z-20">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
@@ -256,40 +100,14 @@ const DashboardPage = () => {
       </header>
 
       <main className="mx-auto max-w-7xl p-6 -mt-6">
-        {/* Month Selector */}
-        <div className="flex items-center justify-between mb-6 bg-white/10 backdrop-blur rounded-xl p-4">
-          <button
-            onClick={() => changeMonth(-1)}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white"
-            aria-label="Previous month"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h2 className="text-lg font-semibold text-white">
-            {getMonthName(currentMonth.year, currentMonth.month)}
-          </h2>
-          <button
-            onClick={() => changeMonth(1)}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white"
-            aria-label="Next month"
-            disabled={currentMonth.year === new Date().getFullYear() && currentMonth.month === new Date().getMonth()}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Main Stats Cards - MONTHLY */}
+        {/* Main Stats Cards */}
         <div className="grid gap-6 md:grid-cols-3 mb-6">
-          {/* Customers */}
-          <div className="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl p-6 text-white shadow-xl">
+          {/* Total Customers */}
+          <div className="bg-linear-to-brrom-emerald-400 to-teal-500 rounded-2xl p-6 text-white shadow-xl">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm font-medium uppercase tracking-wider">Total Customers</p>
-                <p className="text-4xl font-bold mt-2">{totalCustomers}</p>
+                <p className="text-emerald-100 text-sm font-medium">Total Customers</p>
+                <p className="text-4xl font-bold mt-2">{stats.totalCustomers}</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl">
                 <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -297,15 +115,14 @@ const DashboardPage = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-emerald-100 text-xs mt-3">All-time customer count</p>
           </div>
 
-          {/* Monthly Total Credit */}
-          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-2xl p-6 text-white shadow-xl">
+          {/* Total Credit */}
+          <div className="bg-linear-to-br from-red-500 to-red-600 rounded-2xl p-6 text-white shadow-xl">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-red-100 text-sm font-medium uppercase tracking-wider">Credit This Month</p>
-                <p className="text-4xl font-bold mt-2">{formatKSH(monthlyStats.monthlyCredit)}</p>
+                <p className="text-red-100 text-sm font-medium">Total Credit</p>
+                <p className="text-4xl font-bold mt-2">{formatKSH(stats.credit)}</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl">
                 <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,17 +130,14 @@ const DashboardPage = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-red-100 text-xs mt-3">
-              All-time: {formatKSH(cumulativeStats.totalCredit)}
-            </p>
           </div>
 
-          {/* Monthly Total Paid */}
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-xl">
+          {/* Total Paid */}
+          <div className="bg-linear-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-xl">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm font-medium uppercase tracking-wider">Paid This Month</p>
-                <p className="text-4xl font-bold mt-2">{formatKSH(monthlyStats.monthlyPaid)}</p>
+                <p className="text-emerald-100 text-sm font-medium">Total Paid</p>
+                <p className="text-4xl font-bold mt-2">{formatKSH(stats.paid)}</p>
               </div>
               <div className="bg-white/20 p-3 rounded-xl">
                 <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,31 +145,6 @@ const DashboardPage = () => {
                 </svg>
               </div>
             </div>
-            <p className="text-emerald-100 text-xs mt-3">
-              All-time: {formatKSH(cumulativeStats.totalPaid)}
-            </p>
-          </div>
-        </div>
-
-        {/* Secondary Stats */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Outstanding Balance</p>
-            <p className="text-2xl font-bold text-red-600 mt-1">{formatKSH(cumulativeStats.outstandingBalance)}</p>
-            <p className="text-xs text-gray-400 mt-1">This month: {formatKSH(monthlyStats.monthlyOutstanding)}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Customers Owing</p>
-            <p className="text-2xl font-bold text-amber-600 mt-1">{customersOwing}</p>
-            <p className="text-xs text-gray-400 mt-1">of {totalCustomers} total</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Total Brokers</p>
-            <p className="text-2xl font-bold text-blue-600 mt-1">{totalBrokers}</p>
-          </div>
-          <div className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg">
-            <p className="text-gray-500 text-sm font-medium">Total Purchases</p>
-            <p className="text-2xl font-bold text-orange-600 mt-1">{totalPurchases}</p>
           </div>
         </div>
 
@@ -364,8 +153,7 @@ const DashboardPage = () => {
           <h3 className="text-white text-lg font-semibold mb-4">Quick Access</h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             
-            {/* Credit Statements */}
-            <Link to="/transactions" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
+            <Link to="/credit-statements" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="bg-green-100 p-3 rounded-xl group-hover:bg-green-200 transition-colors">
@@ -378,13 +166,10 @@ const DashboardPage = () => {
                     <p className="text-sm text-gray-500">View customer ledgers</p>
                   </div>
                 </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </div>
             </Link>
 
-            {/* Broker Ledger */}
             <Link to="/brokers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -398,13 +183,10 @@ const DashboardPage = () => {
                     <p className="text-sm text-gray-500">Manage broker records</p>
                   </div>
                 </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-yellow-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-yellow-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </div>
             </Link>
 
-            {/* Customers */}
             <Link to="/customers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -418,13 +200,28 @@ const DashboardPage = () => {
                     <p className="text-sm text-gray-500">Manage customer records</p>
                   </div>
                 </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </div>
             </Link>
+            // Add Bottle Sales tile to the navigation grid (around line 200+)
+<Link to="/bottle-sales" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-4">
+      <div className="bg-blue-100 p-3 rounded-xl group-hover:bg-blue-200 transition-colors">
+        <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      </div>
+      <div>
+        <p className="font-semibold text-gray-900">Bottle Sales</p>
+        <p className="text-sm text-gray-500">Track bottle deliveries</p>
+      </div>
+    </div>
+    <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+  </div>
+</Link>
 
-            {/* Purchases */}
+
             <Link to="/purchases" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -438,13 +235,10 @@ const DashboardPage = () => {
                     <p className="text-sm text-gray-500">Bottles procurement</p>
                   </div>
                 </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-orange-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-orange-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </div>
             </Link>
 
-            {/* AI Reminders */}
             <Link to="/reminders" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -458,14 +252,11 @@ const DashboardPage = () => {
                     <p className="text-sm text-gray-500">Send debt reminders</p>
                   </div>
                 </div>
-                <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </div>
             </Link>
 
-            {/* Admin Panel - Show ONLY for admin */}
-            {!roleLoading && userRole === 'admin' && (
+            {isAdmin && (
               <Link to="/admin" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group border-2 border-purple-300">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -479,67 +270,26 @@ const DashboardPage = () => {
                       <p className="text-sm text-gray-500">Approve new users</p>
                     </div>
                   </div>
-                  <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <svg className="h-5 w-5 text-gray-400 group-hover:text-purple-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </div>
               </Link>
             )}
           </div>
         </div>
-
-        {/* Recent Activity Preview */}
-        <div className="bg-white/95 backdrop-blur rounded-xl p-6 shadow-lg">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            {customers?.slice(0, 5).map((customer) => {
-              const lastTx = customer.transactions?.[0];
-              if (!lastTx) return null;
-              
-              const isCredit = lastTx.transaction_type?.toLowerCase() === 'credit';
-              return (
-                <div key={customer.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${isCredit ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                    <div>
-                      <p className="font-medium text-gray-900">{customer.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {isCredit ? 'Credit added' : 'Payment received'} • {new Date(lastTx.created_at || lastTx.date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <p className={`font-semibold ${isCredit ? 'text-red-600' : 'text-green-600'}`}>
-                    {isCredit ? '+' : '-'}{formatKSH(lastTx.amount)}
-                  </p>
-                </div>
-              );
-            })}
-            {(!customers || customers.length === 0) && (
-              <p className="text-gray-500 text-center py-4">No recent activity</p>
-            )}
-          </div>
-        </div>
+        {/* ✅ Recent Activity section REMOVED */}
       </main>
 
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Confirm Logout</h3>
-              <p className="text-sm text-gray-500 mt-1">Are you sure you want to logout?</p>
-            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Confirm Logout</h3>
+            <p className="text-sm text-gray-500 mb-4">Are you sure you want to logout?</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 font-semibold text-gray-700 hover:bg-gray-50">
                 Cancel
               </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700 transition-colors"
-              >
+              <button onClick={handleLogout} className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 font-semibold text-white hover:bg-red-700">
                 Logout
               </button>
             </div>

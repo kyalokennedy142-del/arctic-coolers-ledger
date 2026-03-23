@@ -1,21 +1,20 @@
 // src/App.jsx
-import React from 'react';
+import React, { useEffect } from 'react';  // ✅ Only import what you use
 import { Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-/**
- * Main App Layout Component
- * 
- * This component serves as the root layout for all routed pages.
- * It provides:
- * - A consistent background and minimum height for the viewport
- * - The Outlet for rendering child routes from react-router-dom
- * - A global Toaster for displaying notifications anywhere in the app
- * 
- * Note: This component should NOT contain the ReactDOM.render logic.
- * That belongs in src/main.jsx (or src/index.jsx).
- */
 function App() {
+  // ✅ useEffect MUST be inside the component function
+  useEffect(() => {
+    // Debug: Log env vars (remove in production)
+    console.log('🔍 Vite Env Debug:', {
+      hasUrl: !!import.meta.env.VITE_SUPABASE_URL,
+      hasKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+      urlPreview: import.meta.env.VITE_SUPABASE_URL?.substring(0, 40) + '...',
+      allViteVars: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
+    });
+  }, []);  // ✅ Empty dependency array = run once on mount
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Outlet renders the matched child route component */}
@@ -49,16 +48,5 @@ function App() {
     </div>
   );
 }
-
-// eslint-disable-next-line react-hooks/rules-of-hooks, no-undef
-useEffect(() => {
-  console.log('🔍 Vite Env Debug:', {
-    hasUrl: !!import.meta.env.VITE_SUPABASE_URL,
-    hasKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
-    urlPreview: import.meta.env.VITE_SUPABASE_URL?.substring(0, 40) + '...',
-    allViteVars: Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'))
-  });
-}, []);
-
 
 export default App;

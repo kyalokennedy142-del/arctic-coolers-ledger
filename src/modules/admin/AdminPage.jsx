@@ -130,7 +130,7 @@ const AdminPage = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-blue-700 to-cyan-600 px-6 py-8 text-white shadow-xl sticky top-0 z-30">
+      <header className="bg-linear-to-r from-blue-700 to-cyan-600 px-6 py-8 text-white shadow-xl sticky top-0 z-30">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link to="/" className="bg-white/20 hover:bg-white/30 p-2 rounded-xl transition-all">

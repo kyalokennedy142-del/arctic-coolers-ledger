@@ -23,7 +23,7 @@ const decodeBase64 = (base64String) => {
     if (typeof window !== 'undefined') {
       return atob(base64String);
     }
-    // eslint-disable-next-line no-undef
+     
     return Buffer.from(base64String, 'base64').toString('utf-8');
   } catch (error) {
     console.error('Base64 decode error:', error);
@@ -188,7 +188,7 @@ export const exportTableAsBase64 = async (tableName) => {
     const jsonString = JSON.stringify(data, null, 2);
     const base64 = typeof window !== 'undefined' 
       ? btoa(jsonString)
-      // eslint-disable-next-line no-undef
+       
       : Buffer.from(jsonString).toString('base64');
     
     return { success: true, base64, count: data?.length || 0 };

@@ -2,9 +2,9 @@
 // src/modules/purchases/PurchasesPage.jsx
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useData } from '../../Context/DataContext'; // ✅ FIXED: lowercase 'context'
+import { useData } from '../../context/DataContext'; // ✅ FIXED: lowercase 'context'
 import toast from 'react-hot-toast';
-import { formatKSH } from '../../lib/formatCurrency'; // ✅ Use shared utility
+import { formatKSH } from '../../utils/formatCurrency'; // ✅ Use shared utility
 
 // ✅ Full product list per requirements
 const PRODUCT_TYPES = [
@@ -230,7 +230,7 @@ const PurchasesPage = () => {
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       
       {/* Header - Orange/Amber Theme */}
-      <header className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-8 text-white shadow-md">
+      <header className="bg-linear-to-r from-orange-500 to-amber-500 px-6 py-8 text-white shadow-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div className="flex items-center gap-4">
             <Link

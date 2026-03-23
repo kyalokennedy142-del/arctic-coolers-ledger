@@ -1,13 +1,12 @@
-/* eslint-disable react-refresh/only-export-components */
 // src/app/routes.jsx
 import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import App from '../App';
 import AuthGuard from '../lib/AuthGuard';
 
-// ✅ Page imports — EXACT casing must match filenames on disk
-import LoginPage from '../modules/auth/LoginPage';        // ✅ LoginPage.jsx
-import SignupPage from "../modules/auth/SignupPage";  // ✅ lowercase u, capital P     
+// Page imports - EXACT casing
+import LoginPage from '../modules/auth/LoginPage';
+import SignupPage from '../modules/auth/SignupPage'; // lowercase 'p'
 import DashboardPage from '../modules/dashboard/DashboardPage';
 import CustomersPage from '../modules/customers/CustomersPage';
 import BrokersPage from '../modules/brokers/BrokersPage';
@@ -16,58 +15,35 @@ import PurchasesPage from '../modules/purchases/PurchasesPage';
 import RemindersPage from '../modules/reminders/RemindersPage';
 import AdminPage from '../modules/admin/AdminPage';
 
-// ✅ Fallback component for error boundaries
-const FallbackPage = ({ message = 'Page not found' }) => (
+import BottleSalesPage from '../modules/bottle-sales/BottleSalesPage';
+
+const Fallback = ({ msg }) => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="text-center p-8">
-      <h1 className="text-2xl font-bold text-gray-800 mb-2">404</h1>
-      <p className="text-gray-600">{message}</p>
-      <a href="/" className="mt-4 text-blue-600 hover:underline">Return to Dashboard</a>
+    <div className="text-center p-8 bg-white rounded-2xl shadow">
+      <p className="text-red-600 font-medium mb-2">⚠️ {msg}</p>
+      <a href="/login" className="text-blue-600 hover:underline">Return to Login</a>
     </div>
   </div>
 );
 
-const router = createBrowserRouter([
-  // 🔐 Protected routes (require authentication)
+export default createBrowserRouter([
   {
     path: '/',
-    element: (
-      <AuthGuard>
-        <App />
-      </AuthGuard>
-    ),
-    errorElement: <FallbackPage message="Protected route error" />,
+    element: <AuthGuard><App /></AuthGuard>, // ✅ Keep for production security
+    errorElement: <Fallback msg="Protected route error" />,
     children: [
-      { index: true, element: <DashboardPage />, errorElement: <FallbackPage message="Dashboard failed to load" /> },
-      { path: 'customers', element: <CustomersPage />, errorElement: <FallbackPage message="Customers page failed to load" /> },
-      { path: 'brokers', element: <BrokersPage />, errorElement: <FallbackPage message="Brokers page failed to load" /> },
-      { path: 'transactions', element: <CreditStatementsPage />, errorElement: <FallbackPage message="Statements page failed to load" /> },
-      { path: 'purchases', element: <PurchasesPage />, errorElement: <FallbackPage message="Purchases page failed to load" /> },
-      { path: 'reminders', element: <RemindersPage />, errorElement: <FallbackPage message="Reminders page failed to load" /> },
-      { path: 'admin', element: <AdminPage />, errorElement: <FallbackPage message="Admin page failed to load" /> },
+      { index: true, element: <DashboardPage /> },
+      { path: 'customers', element: <CustomersPage /> },
+      { path: 'brokers', element: <BrokersPage /> },
+      { path: 'credit-statements', element: <CreditStatementsPage /> },
+      { path: 'purchases', element: <PurchasesPage /> },
+      { path: 'reminders', element: <RemindersPage /> },
+      { path: 'admin', element: <AdminPage /> },
+      { path: 'bottle-sales', element: <BottleSalesPage /> },
+
     ],
   },
-  
-  // 🔓 Public auth routes (NO AuthGuard)
-  { path: '/login', element: <LoginPage />, errorElement: <FallbackPage message="Login page failed to load" /> },
-  { path: '/signup', element: <SignupPage />, errorElement: <FallbackPage message="Signup page failed to load" /> },
-  
-  // Optional: Password reset route
-  { 
-    path: '/reset-password', 
-    element: (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-white rounded-xl p-8 max-w-md text-center shadow-lg">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Reset Password</h1>
-          <p className="text-gray-600">Check your email for reset instructions</p>
-          <a href="/login" className="mt-4 inline-block text-blue-600 hover:underline">Return to Login</a>
-        </div>
-      </div>
-    )
-  },
-  
-  // 🔄 Catch-all: Redirect unknown routes to dashboard
+  { path: '/login', element: <LoginPage /> },
+  { path: '/signup', element: <SignupPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
-
-export default router;

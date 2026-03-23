@@ -1,72 +1,62 @@
-import * as React from 'react';
-import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, isSupabaseReady } from '../lib/supabaseClient';
+// src/context/DataContext.jsx
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 const DataContext = createContext(null);
-
-// ✅ NAMED EXPORT - This is what DashboardPage.jsx imports
-// eslint-disable-next-line react-refresh/only-export-components
 export const useData = () => {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within DataProvider');
-  }
-  return context;
+  const ctx = useContext(DataContext);
+  if (!ctx) throw new Error('useData must be used within DataProvider');
+  return ctx;
 };
 
-// ✅ NAMED EXPORT - This is what main.jsx imports
 export function DataProvider({ children }) {
   const [customers, setCustomers] = useState([]);
   const [brokers, setBrokers] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const loadData = async () => {
-      // LocalStorage first
-      try {
-        const saved = localStorage.getItem('arctic-data');
-        if (saved && mounted) {
-          const d = JSON.parse(saved);
-          setCustomers(d.customers || []);
-          setBrokers(d.brokers || []);
-          setPurchases(d.purchases || []);
-        }
-      } catch (e) { console.warn('localStorage:', e); }
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-      // Skip if no Supabase
-      if (!isSupabaseReady()) { if (mounted) setLoading(false); return; }
+      const [custRes, brokerRes, purchRes, transRes] = await Promise.allSettled([
+        supabase.from('customers').select('*').order('created_at', { ascending: false }),
+        supabase.from('brokers').select('*').order('created_at', { ascending: false }),
+        supabase.from('purchases').select('*').order('created_at', { ascending: false }),
+        supabase.from('transactions').select('*').order('created_at', { ascending: false })
+      ]);
 
-      // Fetch from Supabase
-      try {
-        const fetchTable = async (table) => {
-          try {
-            const { data, error } = await supabase.from(table).select('*').order('created_at', { ascending: false });
-            if (error) throw error;
-            return data || [];
-          } catch { return []; }
-        };
-        const [c, b, p] = await Promise.all([fetchTable('customers'), fetchTable('brokers'), fetchTable('purchases')]);
-        if (mounted) {
-          setCustomers(c); setBrokers(b); setPurchases(p);
-          localStorage.setItem('arctic-data', JSON.stringify({ customers: c, brokers: b, purchases: p }));
-        }
-      } catch (err) { console.warn('Supabase:', err); }
-      finally { if (mounted) setLoading(false); }
-    };
-    loadData();
-    return () => { mounted = false; };
+      if (custRes.status === 'fulfilled') setCustomers(custRes.value.data || []);
+      if (brokerRes.status === 'fulfilled') setBrokers(brokerRes.value.data || []);
+      if (purchRes.status === 'fulfilled') setPurchases(purchRes.value.data || []);
+      if (transRes.status === 'fulfilled') setTransactions(transRes.value.data || []);
+
+      [custRes, brokerRes, purchRes, transRes].forEach((res, i) => {
+        if (res.status === 'rejected') console.warn(`Data load failed [${i}]:`, res.reason);
+      });
+    } catch (e) {
+      console.error('DataContext error:', e);
+      setError('Failed to load data from Supabase');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Auto-save
-  useEffect(() => {
-    if (!loading) localStorage.setItem('arctic-data', JSON.stringify({ customers, brokers, purchases }));
-  }, [customers, brokers, purchases, loading]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const value = { customers, brokers, purchases, loading, setCustomers, setBrokers, setPurchases, setLoading };
-  return React.createElement(DataContext.Provider, { value }, children);
+  const value = { 
+    customers, 
+    brokers, 
+    purchases, 
+    transactions, 
+    loading, 
+    error, 
+    refresh: loadData 
+  };
+  
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
-
-// Default export (optional)
 export default DataContext;

@@ -1,736 +1,353 @@
- 
 // src/modules/credit-statements/CreditStatementsPage.jsx
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useData } from '../../Context/DataContext';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useData } from '../../context/DataContext';  // ✅ Fixed: ../../
+import { supabase } from '../../lib/supabaseClient';  // ✅ Fixed: ../../
+import { formatKSH, formatDate } from '../../utils/formatCurrency';  // ✅ Fixed: ../../
 import toast from 'react-hot-toast';
-import { formatKSH } from '../../lib/formatCurrency'; // ✅ Use shared utility
 
-const CreditStatementsPage = () => {
-  const { customers, addTransaction, deleteTransaction, updateTransaction } = useData();
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [expandedCustomer, setExpandedCustomer] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false); // ✅ Edit modal state
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [editingTransaction, setEditingTransaction] = useState(null); // ✅ Edit transaction state
-  
-  const [transactionForm, setTransactionForm] = useState({
-    type: 'credit',
+// ─────────────────────────────────────────────────────────────
+// Transaction Modal Component
+// ─────────────────────────────────────────────────────────────
+const TransactionModal = ({ isOpen, onClose, customer, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    transaction_date: new Date().toISOString().split('T')[0],
+    transaction_type: 'Credit',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
     notes: ''
   });
+  const [isSaving, setIsSaving] = useState(false);
 
-  // ✅ URL Param: Auto-expand customer if ?customer=Name in URL
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const customerName = params.get('customer');
-    
-    if (customerName && customers?.length > 0) {
-      const matched = customers.find(c => 
-        c.name?.toLowerCase().includes(customerName.toLowerCase())
-      );
-      if (matched) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setExpandedCustomer(matched.id);
-        // Clean URL without refreshing
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, [customers, location.search]);
-
-  // Process all customers with their transactions
-  const processedCustomers = useMemo(() => {
-    if (!Array.isArray(customers)) return [];
-    
-    return customers.map(customer => {
-      const transactions = (customer.transactions || [])
-        .sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date));
-      
-      const totalCredit = transactions
-        .filter(t => t.transaction_type?.toLowerCase() === 'credit')
-        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-      
-      const totalPaid = transactions
-        .filter(t => ['payment', 'paid'].includes(t.transaction_type?.toLowerCase()))
-        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-      return {
-        ...customer,
-        transactions,
-        totalCredit,
-        totalPaid,
-        balance: totalCredit - totalPaid
-      };
-    });
-  }, [customers]);
-
-  // Filter customers
-  const filteredCustomers = useMemo(() => {
-    let filtered = processedCustomers;
-
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(c => 
-        c.name?.toLowerCase().includes(term) ||
-        c.phone?.toLowerCase().includes(term) ||
-        c.email?.toLowerCase().includes(term)
-      );
-    }
-
-    if (dateFilter) {
-      filtered = filtered.filter(c => 
-        c.transactions.some(t => {
-          const tDate = new Date(t.created_at || t.date).toISOString().split('T')[0];
-          return tDate === dateFilter;
-        })
-      );
-    }
-
-    return filtered;
-  }, [processedCustomers, searchTerm, dateFilter]);
-
-  // Toggle expand customer
-  const toggleExpand = (customerId) => {
-    setExpandedCustomer(expandedCustomer === customerId ? null : customerId);
-  };
-
-  // Open add transaction modal
-  const openAddModal = (customer) => {
-    setSelectedCustomer(customer);
-    setEditingTransaction(null);
-    setTransactionForm({
-      type: 'credit',
-      amount: '',
-      date: new Date().toISOString().split('T')[0],
-      notes: ''
-    });
-    setShowAddModal(true);
-  };
-
-  // ✅ Open edit transaction modal
-  const openEditModal = (customer, transaction) => {
-    setSelectedCustomer(customer);
-    setEditingTransaction(transaction);
-    setTransactionForm({
-      type: transaction.transaction_type || 'credit',
-      amount: transaction.amount?.toString() || '',
-      date: transaction.date?.split('T')[0] || transaction.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-      notes: transaction.description || transaction.notes || ''
-    });
-    setShowEditModal(true);
-  };
-
-  // Handle add transaction
-  const handleAddTransaction = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!selectedCustomer || !transactionForm.amount) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    const newTransaction = {
-      customer_id: selectedCustomer.id,
-      transaction_type: transactionForm.type,
-      amount: parseFloat(transactionForm.amount),
-      description: transactionForm.notes?.trim() || `${transactionForm.type} transaction`,
-      date: transactionForm.date,
-      created_at: new Date().toISOString()
-    };
-
+    setIsSaving(true);
     try {
-      addTransaction(selectedCustomer.id, newTransaction);
-      toast.success('Transaction added successfully!');
-      setShowAddModal(false);
-      
-      if (transactionForm.type === 'credit') {
-        toast.success('Customer flagged for AI reminders!');
-      }
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      toast.error('Failed to add transaction');
+      const { error } = await supabase.from('transactions').insert([{
+        customer_id: customer.id,
+        customer_name: customer.name,
+        transaction_date: formData.transaction_date,
+        transaction_type: formData.transaction_type,
+        amount: parseFloat(formData.amount),
+        notes: formData.notes
+      }]);
+      if (error) throw error;
+      toast.success('Transaction added!');
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      toast.error('Failed: ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // ✅ Handle update transaction
-  const handleUpdateTransaction = async (e) => {
-    e.preventDefault();
-    
-    if (!selectedCustomer || !editingTransaction || !transactionForm.amount) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    const updatedTransaction = {
-      ...editingTransaction,
-      transaction_type: transactionForm.type,
-      amount: parseFloat(transactionForm.amount),
-      description: transactionForm.notes?.trim() || `${transactionForm.type} transaction`,
-      date: transactionForm.date,
-      updated_at: new Date().toISOString()
-    };
-
-    try {
-      updateTransaction(selectedCustomer.id, editingTransaction.id, updatedTransaction);
-      toast.success('Transaction updated successfully!');
-      setShowEditModal(false);
-      setEditingTransaction(null);
-    } catch (error) {
-      console.error('Error updating transaction:', error);
-      toast.error('Failed to update transaction');
-    }
-  };
-
-  // Handle delete transaction
-  const handleDeleteTransaction = (customerId, transactionId) => {
-    if (window.confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
-      try {
-        deleteTransaction(customerId, transactionId);
-        toast.success('Transaction deleted successfully');
-      } catch (error) {
-        console.error('Delete error:', error);
-        toast.error('Failed to delete transaction');
-      }
-    }
-  };
-
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
-  // Navigate to AI reminders
-  const openAIReminders = () => {
-    navigate('/reminders');
-  };
-
-  // Close modals
-  const closeAddModal = () => {
-    setShowAddModal(false);
-    setSelectedCustomer(null);
-    setTransactionForm({ type: 'credit', amount: '', date: new Date().toISOString().split('T')[0], notes: '' });
-  };
-
-  const closeEditModal = () => {
-    setShowEditModal(false);
-    setEditingTransaction(null);
-    setSelectedCustomer(null);
-    setTransactionForm({ type: 'credit', amount: '', date: new Date().toISOString().split('T')[0], notes: '' });
-  };
-
-  // Loading state
-  if (!customers) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading transactions...</p>
-        </div>
-      </div>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Back to dashboard"
-            >
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+      <div className="w-full max-w-2xl bg-white rounded-t-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900">Add Transaction - {customer?.name}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Credit Statements</h1>
-              <p className="text-sm text-gray-500">View all transactions by customer</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+              <input type="date" required value={formData.transaction_date} onChange={(e) => setFormData({...formData, transaction_date: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+              <select value={formData.transaction_type} onChange={(e) => setFormData({...formData, transaction_type: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="Credit">Credit</option>
+                <option value="Payment">Payment</option>
+              </select>
             </div>
           </div>
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amount (KSh) *</label>
+            <input type="number" required min="0.01" step="0.01" value={formData.amount} onChange={(e) => setFormData({...formData, amount: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea value={formData.notes} onChange={(e) => setFormData({...formData, notes: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3} placeholder="Optional notes..." />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={isSaving} className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{isSaving ? 'Saving...' : 'Add Transaction'}</button>
+          </div>
+        </form>
       </div>
-
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* AI Assistant Button */}
-        <div className="mb-6">
-          <button
-            onClick={openAIReminders}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Ask AI Assistant
-          </button>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="mb-6 space-y-3">
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search by customer name, phone, or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            {dateFilter && (
-              <button
-                onClick={() => setDateFilter('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Customer Cards */}
-        <div className="space-y-4">
-          {filteredCustomers.map((customer) => (
-            <div
-              key={customer.id}
-              className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              {/* Card Header */}
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">{customer.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {customer.transactions?.length || 0} transaction(s)
-                      {customer.phone && <span className="ml-2">• 📞 {customer.phone}</span>}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => toggleExpand(customer.id)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-                    aria-label={expandedCustomer === customer.id ? 'Collapse' : 'Expand'}
-                  >
-                    <svg 
-                      className={`w-5 h-5 text-gray-500 transform transition-transform duration-200 ${expandedCustomer === customer.id ? 'rotate-180' : ''}`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Total Credit and Paid Summary */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="bg-red-50 rounded-lg p-4 border border-red-100">
-                    <p className="text-xs font-semibold text-red-600 uppercase tracking-wide">Total Credit</p>
-                    <p className="text-xl font-bold text-red-700 mt-1">{formatKSH(customer.totalCredit)}</p>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-                    <p className="text-xs font-semibold text-green-600 uppercase tracking-wide">Total Paid</p>
-                    <p className="text-xl font-bold text-green-700 mt-1">{formatKSH(customer.totalPaid)}</p>
-                  </div>
-                </div>
-
-                {/* Balance Badge */}
-                {customer.balance !== 0 && (
-                  <div className={`mb-4 px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${
-                    customer.balance > 0 
-                      ? 'bg-amber-100 text-amber-800' 
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    <span>{customer.balance > 0 ? '⚠️ Outstanding' : '✅ Settled'}</span>
-                    <span className="font-bold">{formatKSH(Math.abs(customer.balance))}</span>
-                  </div>
-                )}
-
-                {/* Add Transaction Button */}
-                <button
-                  onClick={() => openAddModal(customer)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Transaction
-                </button>
-              </div>
-
-              {/* Expanded Transaction List */}
-              {expandedCustomer === customer.id && (
-                <div className="border-t border-gray-200 bg-gray-50">
-                  <div className="p-4">
-                    {customer.transactions?.length === 0 ? (
-                      <p className="text-center text-gray-500 py-4">No transactions yet</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {/* Table Header */}
-                        <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          <div className="col-span-3">Date</div>
-                          <div className="col-span-2">Credit</div>
-                          <div className="col-span-2">Payment</div>
-                          <div className="col-span-3">Notes</div>
-                          <div className="col-span-2 text-right">Actions</div>
-                        </div>
-
-                        {/* Transactions */}
-                        {customer.transactions.map((transaction) => (
-                          <div
-                            key={transaction.id}
-                            className="grid grid-cols-12 gap-4 px-4 py-3 bg-white rounded-lg border border-gray-200 items-start"
-                          >
-                            {/* Date */}
-                            <div className="col-span-3 flex items-center gap-2">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                transaction.transaction_type?.toLowerCase() === 'credit' 
-                                  ? 'bg-red-100 text-red-600' 
-                                  : 'bg-green-100 text-green-600'
-                              }`}>
-                                {transaction.transaction_type?.toLowerCase() === 'credit' ? (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className="text-sm text-gray-700">{formatDate(transaction.created_at || transaction.date)}</span>
-                            </div>
-                            
-                            {/* Credit Amount */}
-                            <div className="col-span-2 text-sm">
-                              {transaction.transaction_type?.toLowerCase() === 'credit' ? (
-                                <span className="font-semibold text-red-600">{formatKSH(transaction.amount)}</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </div>
-                            
-                            {/* Payment Amount */}
-                            <div className="col-span-2 text-sm">
-                              {['payment', 'paid'].includes(transaction.transaction_type?.toLowerCase()) ? (
-                                <span className="font-semibold text-green-600">{formatKSH(transaction.amount)}</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </div>
-                            
-                            {/* Notes - ✅ NOW DISPLAYED */}
-                            <div className="col-span-3 text-sm text-gray-600 truncate" title={transaction.description || transaction.notes || ''}>
-                              {transaction.description || transaction.notes || '-'}
-                            </div>
-                            
-                            {/* Actions */}
-                            <div className="col-span-2 flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => openEditModal(customer, transaction)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="Edit transaction"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteTransaction(customer.id, transaction.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete transaction"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Empty State */}
-        {filteredCustomers.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p className="text-gray-500 text-lg font-medium">No customers found</p>
-            <p className="text-gray-400 text-sm mt-1">Try adjusting your search or filters</p>
-            {(searchTerm || dateFilter) && (
-              <button
-                onClick={() => { setSearchTerm(''); setDateFilter(''); }}
-                className="mt-4 text-blue-600 font-medium hover:text-blue-700"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ✅ Add Transaction Modal */}
-      {showAddModal && selectedCustomer && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
-              <div className="flex items-center gap-2">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <h2 className="text-xl font-bold text-gray-900">Add Transaction</h2>
-              </div>
-              <button
-                onClick={closeAddModal}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleAddTransaction} className="p-6 space-y-5">
-              {/* Customer (read-only) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-                <input
-                  type="text"
-                  value={selectedCustomer.name}
-                  disabled
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-500"
-                />
-              </div>
-
-              {/* Date and Type */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(e) => setTransactionForm({...transactionForm, date: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={transactionForm.type}
-                    onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="credit">➕ Credit</option>
-                    <option value="payment">💰 Payment</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Amount (KSh) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={transactionForm.amount}
-                  onChange={(e) => setTransactionForm({...transactionForm, amount: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-                <textarea
-                  placeholder="Add description or reference..."
-                  value={transactionForm.notes}
-                  onChange={(e) => setTransactionForm({...transactionForm, notes: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  rows={3}
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={closeAddModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Save Transaction
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ✅ Edit Transaction Modal */}
-      {showEditModal && selectedCustomer && editingTransaction && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
-              <div className="flex items-center gap-2">
-                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-                <h2 className="text-xl font-bold text-gray-900">Edit Transaction</h2>
-              </div>
-              <button
-                onClick={closeEditModal}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateTransaction} className="p-6 space-y-5">
-              {/* Customer (read-only) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-                <input
-                  type="text"
-                  value={selectedCustomer.name}
-                  disabled
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-gray-500"
-                />
-              </div>
-
-              {/* Date and Type */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={transactionForm.date}
-                    onChange={(e) => setTransactionForm({...transactionForm, date: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={transactionForm.type}
-                    onChange={(e) => setTransactionForm({...transactionForm, type: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    required
-                  >
-                    <option value="credit">➕ Credit</option>
-                    <option value="payment">💰 Payment</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Amount (KSh) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={transactionForm.amount}
-                  onChange={(e) => setTransactionForm({...transactionForm, amount: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-                <textarea
-                  placeholder="Add description or reference..."
-                  value={transactionForm.notes}
-                  onChange={(e) => setTransactionForm({...transactionForm, notes: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-                  rows={3}
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2.5 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors"
-                >
-                  Update Transaction
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default CreditStatementsPage;
+// ─────────────────────────────────────────────────────────────
+// Main Credit Statements Page Component
+// ─────────────────────────────────────────────────────────────
+export default function CreditStatementsPage() {
+  const { customers, transactions, loading, error, refresh } = useData();  // ✅ Use DataContext
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  const [expandedCustomer, setExpandedCustomer] = useState(null);
+  const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerTransactions, setCustomerTransactions] = useState({});
+  const [loadingTransactions, setLoadingTransactions] = useState({});
+
+  // Handle URL param for auto-expand
+  useEffect(() => {
+    const customerParam = searchParams.get('customer');
+    if (customerParam && customers) {
+      const matched = customers.find(c => c.name?.toLowerCase().includes(customerParam.toLowerCase()));
+      if (matched) {
+        setExpandedCustomer(matched.id);
+        setSearchTerm(customerParam);
+        fetchCustomerTransactions(matched.id);
+      }
+    }
+  }, [searchParams, customers]);
+
+  // Fetch transactions for individual customer
+  const fetchCustomerTransactions = async (customerId) => {
+    if (customerTransactions[customerId]) return;
+    
+    setLoadingTransactions(prev => ({ ...prev, [customerId]: true }));
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('customer_id', customerId)
+        .order('transaction_date', { ascending: false });
+      
+      if (error) throw error;
+      setCustomerTransactions(prev => ({ ...prev, [customerId]: data || [] }));
+    } catch (err) {
+      toast.error('Failed to load transactions: ' + err.message);
+    } finally {
+      setLoadingTransactions(prev => ({ ...prev, [customerId]: false }));
+    }
+  };
+
+  // Filter customers
+  const filteredCustomers = useMemo(() => {
+    if (!Array.isArray(customers)) return [];
+    
+    let result = [...customers];
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(c => c.name?.toLowerCase().includes(term));
+    }
+    
+    return result.sort((a, b) => a.name?.localeCompare(b.name));
+  }, [customers, searchTerm]);
+
+  // Calculate totals for a customer
+  const calculateCustomerTotals = (customerId) => {
+    const txs = customerTransactions[customerId] || [];
+    const totalCredit = txs.filter(t => t.transaction_type?.toLowerCase() === 'credit')
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const totalPaid = txs.filter(t => ['payment', 'paid'].includes(t.transaction_type?.toLowerCase()))
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    return { totalCredit, totalPaid, balance: totalCredit - totalPaid, count: txs.length };
+  };
+
+  // Handlers
+  const handleExpand = async (customerId) => {
+    if (expandedCustomer === customerId) {
+      setExpandedCustomer(null);
+    } else {
+      setExpandedCustomer(customerId);
+      await fetchCustomerTransactions(customerId);
+    }
+  };
+
+  // ✅ FIXED: Opens modal directly instead of navigating
+  const handleAddTransaction = (customer) => {
+    setSelectedCustomer(customer);
+    setShowTransactionModal(true);  // ✅ Open modal
+  };
+
+  const handleDeleteTransaction = async (txId, customerId) => {
+    if (!confirm('Delete this transaction?')) return;
+    try {
+      const { error } = await supabase.from('transactions').delete().eq('id', txId);
+      if (error) throw error;
+      toast.success('Transaction deleted');
+      fetchCustomerTransactions(customerId);
+    } catch (err) {
+      toast.error('Failed: ' + err.message);
+    }
+  };
+
+  const handleTransactionSuccess = () => {
+    setShowTransactionModal(false);
+    setSelectedCustomer(null);
+    refresh();
+  };
+
+  // Loading/Error states
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+    </div>
+  );
+  
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center p-8 bg-white rounded-2xl shadow">
+        <p className="text-red-600 font-medium mb-2">⚠️ {error}</p>
+        <button onClick={refresh} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Retry</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="sticky top-0 bg-white border-b border-gray-200 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-lg">←</button>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Credit Statements</h1>
+                <p className="text-sm text-gray-500">View all transactions by customer</p>
+              </div>
+            </div>
+            <a href="https://wa.me/254712345678?text=Hello, I need assistance" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+              💬 AI Assistant
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Filters */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 space-y-4">
+          <input type="text" placeholder="Search by customer name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Filter by date:</label>
+            <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            {dateFilter && <button onClick={() => setDateFilter('')} className="text-sm text-blue-600 hover:underline">Clear</button>}
+          </div>
+        </div>
+
+        {/* Customer Ledgers */}
+        <div className="space-y-4">
+          {filteredCustomers.length > 0 ? (
+            filteredCustomers.map(customer => {
+              const totals = calculateCustomerTotals(customer.id);
+              const isExpanded = expandedCustomer === customer.id;
+              const txs = customerTransactions[customer.id] || [];
+              const isLoading = loadingTransactions[customer.id];
+
+              return (
+                <div key={customer.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  {/* Header */}
+                  <div onClick={() => handleExpand(customer.id)} className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-lg">{customer.name}</h3>
+                        <p className="text-sm text-gray-500">{totals.count} transactions</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm text-red-600">Credit: {formatKSH(totals.totalCredit)}</p>
+                          <p className="text-sm text-green-600">Paid: {formatKSH(totals.totalPaid)}</p>
+                          <p className={`font-semibold ${totals.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>Balance: {formatKSH(totals.balance)}</p>
+                        </div>
+                        <button className="p-2 hover:bg-gray-100 rounded-lg">
+                          {isExpanded ? '▲' : '▼'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 p-4">
+                      {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* ✅ FIXED: Opens modal directly */}
+                          <div className="flex justify-end mb-4">
+                            <button 
+                              onClick={() => handleAddTransaction(customer)} 
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                              + Add Transaction
+                            </button>
+                          </div>
+                          
+                          {txs.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-sm">
+                                <thead className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold">
+                                  <tr>
+                                    <th className="px-4 py-3">Date</th>
+                                    <th className="px-4 py-3">Type</th>
+                                    <th className="px-4 py-3">Notes</th>
+                                    <th className="px-4 py-3 text-right">Amount</th>
+                                    <th className="px-4 py-3">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {txs.map(tx => {
+                                    const isCredit = tx.transaction_type?.toLowerCase() === 'credit';
+                                    return (
+                                      <tr key={tx.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-3">{formatDate(tx.created_at || tx.transaction_date)}</td>
+                                        <td className="px-4 py-3">
+                                          <span className={`px-2 py-1 text-xs rounded-full ${isCredit ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                            {tx.transaction_type}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-gray-600">{tx.notes || '-'}</td>
+                                        <td className={`px-4 py-3 text-right font-semibold ${isCredit ? 'text-red-600' : 'text-green-600'}`}>
+                                          {isCredit ? '+' : '-'}{formatKSH(tx.amount)}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <button onClick={() => handleDeleteTransaction(tx.id, customer.id)} className="text-red-600 hover:underline">Delete</button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-center text-gray-500 py-4">No transactions for this customer</p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
+              <p className="text-gray-500">No customers found</p>
+              {searchTerm && <button onClick={() => setSearchTerm('')} className="mt-2 text-blue-600 hover:underline">Clear search</button>}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ✅ Transaction Modal */}
+      <TransactionModal 
+        isOpen={showTransactionModal} 
+        onClose={() => { setShowTransactionModal(false); setSelectedCustomer(null); }} 
+        customer={selectedCustomer}
+        onSuccess={handleTransactionSuccess}
+      />
+    </div>
+  );
+}
