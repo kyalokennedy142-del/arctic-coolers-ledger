@@ -1,3 +1,0 @@
-date,quantity,purchasing_agent,price,company_name,description,transport,total_expenditure,id,created_date,updated_date,created_by_id,created_by,is_sample
-"2026-01-15","3","lawrent","2559.6","safepark","500 ml posh","100","2659.6","69a338a388f17e14b731c829","2026-02-28T18:49:07.481000","2026-02-28T18:49:31.130000","6963ef862e2a38f0d51ff8ca","kariithigrace90@gmail.com","false"
-"2026-01-15","6","lawrent","5011.2","safepark","500 ml clear","100","5111.2","69a3381886d6e7ead416a166","2026-02-28T18:46:48.514000","2026-02-28T18:47:22.742000","6963ef862e2a38f0d51ff8ca","kariithigrace90@gmail.com","false"
