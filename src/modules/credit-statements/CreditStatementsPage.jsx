@@ -1,14 +1,12 @@
 // src/modules/credit-statements/CreditStatementsPage.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useData } from '../../context/DataContext';  // ✅ Fixed: ../../
-import { supabase } from '../../lib/supabaseClient';  // ✅ Fixed: ../../
-import { formatKSH, formatDate } from '../../utils/formatCurrency';  // ✅ Fixed: ../../
+import { useData } from '../../context/DataContext';  // ✅ ../../
+import { supabase } from '../../lib/supabaseClient';  // ✅ ../../
+import { formatKSH, formatDate } from '../../utils/formatCurrency';  // ✅ ../../
 import toast from 'react-hot-toast';
 
-// ─────────────────────────────────────────────────────────────
 // Transaction Modal Component
-// ─────────────────────────────────────────────────────────────
 const TransactionModal = ({ isOpen, onClose, customer, onSuccess }) => {
   const [formData, setFormData] = useState({
     transaction_date: new Date().toISOString().split('T')[0],
@@ -82,11 +80,9 @@ const TransactionModal = ({ isOpen, onClose, customer, onSuccess }) => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────
-// Main Credit Statements Page Component
-// ─────────────────────────────────────────────────────────────
+// Main Component
 export default function CreditStatementsPage() {
-  const { customers, transactions, loading, error, refresh } = useData();  // ✅ Use DataContext
+  const { customers, transactions, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -98,7 +94,6 @@ export default function CreditStatementsPage() {
   const [customerTransactions, setCustomerTransactions] = useState({});
   const [loadingTransactions, setLoadingTransactions] = useState({});
 
-  // Handle URL param for auto-expand
   useEffect(() => {
     const customerParam = searchParams.get('customer');
     if (customerParam && customers) {
@@ -111,10 +106,8 @@ export default function CreditStatementsPage() {
     }
   }, [searchParams, customers]);
 
-  // Fetch transactions for individual customer
   const fetchCustomerTransactions = async (customerId) => {
     if (customerTransactions[customerId]) return;
-    
     setLoadingTransactions(prev => ({ ...prev, [customerId]: true }));
     try {
       const { data, error } = await supabase
@@ -122,7 +115,6 @@ export default function CreditStatementsPage() {
         .select('*')
         .eq('customer_id', customerId)
         .order('transaction_date', { ascending: false });
-      
       if (error) throw error;
       setCustomerTransactions(prev => ({ ...prev, [customerId]: data || [] }));
     } catch (err) {
@@ -132,20 +124,16 @@ export default function CreditStatementsPage() {
     }
   };
 
-  // Filter customers
   const filteredCustomers = useMemo(() => {
     if (!Array.isArray(customers)) return [];
-    
     let result = [...customers];
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(c => c.name?.toLowerCase().includes(term));
     }
-    
     return result.sort((a, b) => a.name?.localeCompare(b.name));
   }, [customers, searchTerm]);
 
-  // Calculate totals for a customer
   const calculateCustomerTotals = (customerId) => {
     const txs = customerTransactions[customerId] || [];
     const totalCredit = txs.filter(t => t.transaction_type?.toLowerCase() === 'credit')
@@ -155,7 +143,6 @@ export default function CreditStatementsPage() {
     return { totalCredit, totalPaid, balance: totalCredit - totalPaid, count: txs.length };
   };
 
-  // Handlers
   const handleExpand = async (customerId) => {
     if (expandedCustomer === customerId) {
       setExpandedCustomer(null);
@@ -165,10 +152,9 @@ export default function CreditStatementsPage() {
     }
   };
 
-  // ✅ FIXED: Opens modal directly instead of navigating
   const handleAddTransaction = (customer) => {
     setSelectedCustomer(customer);
-    setShowTransactionModal(true);  // ✅ Open modal
+    setShowTransactionModal(true);
   };
 
   const handleDeleteTransaction = async (txId, customerId) => {
@@ -189,7 +175,6 @@ export default function CreditStatementsPage() {
     refresh();
   };
 
-  // Loading/Error states
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
@@ -207,7 +192,6 @@ export default function CreditStatementsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="sticky top-0 bg-white border-b border-gray-200 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -226,7 +210,6 @@ export default function CreditStatementsPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Filters */}
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 space-y-4">
           <input type="text" placeholder="Search by customer name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           <div className="flex items-center gap-2">
@@ -236,7 +219,6 @@ export default function CreditStatementsPage() {
           </div>
         </div>
 
-        {/* Customer Ledgers */}
         <div className="space-y-4">
           {filteredCustomers.length > 0 ? (
             filteredCustomers.map(customer => {
@@ -247,7 +229,6 @@ export default function CreditStatementsPage() {
 
               return (
                 <div key={customer.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  {/* Header */}
                   <div onClick={() => handleExpand(customer.id)} className="px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div>
@@ -267,7 +248,6 @@ export default function CreditStatementsPage() {
                     </div>
                   </div>
 
-                  {/* Expanded Content */}
                   {isExpanded && (
                     <div className="border-t border-gray-200 p-4">
                       {isLoading ? (
@@ -276,14 +256,8 @@ export default function CreditStatementsPage() {
                         </div>
                       ) : (
                         <>
-                          {/* ✅ FIXED: Opens modal directly */}
                           <div className="flex justify-end mb-4">
-                            <button 
-                              onClick={() => handleAddTransaction(customer)} 
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                            >
-                              + Add Transaction
-                            </button>
+                            <button onClick={() => handleAddTransaction(customer)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">+ Add Transaction</button>
                           </div>
                           
                           {txs.length > 0 ? (
@@ -341,7 +315,6 @@ export default function CreditStatementsPage() {
         </div>
       </main>
 
-      {/* ✅ Transaction Modal */}
       <TransactionModal 
         isOpen={showTransactionModal} 
         onClose={() => { setShowTransactionModal(false); setSelectedCustomer(null); }} 

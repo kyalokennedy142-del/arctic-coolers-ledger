@@ -1,9 +1,9 @@
 // src/modules/brokers/BrokerLedgerPage.jsx
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useData } from '../../context/DataContext';  // ✅ Use DataContext
-import { supabase } from '../../lib/supabaseClient';  // ✅ Fixed: ../../ not ../
-import { formatKSH, formatPhoneForWhatsApp } from '../../utils/formatCurrency';  // ✅ Fixed: ../../ not ../
+import { useData } from '../../context/DataContext';  // ✅ ../../ not ../
+import { supabase } from '../../lib/supabaseClient';  // ✅ ../../ not ../
+import { formatKSH, formatPhoneForWhatsApp, formatPhoneForDisplay } from '../../utils/formatCurrency';  // ✅ ../../ not ../
 import toast from 'react-hot-toast';
 
 // ─────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ const AddBrokerForm = ({ onSuccess, onCancel }) => {
       <div><label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
         <input type="text" required value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Broker name" /></div>
       <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-        <input type="text" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Phone number" /></div>
+        <input type="text" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Phone number (e.g., 0712345678)" /></div>
       <div><label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
         <input type="text" value={formData.area} onChange={(e) => setFormData({...formData, area: e.target.value})} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Area/Location" /></div>
       <div><label className="block text-sm font-medium text-gray-700 mb-1">Opening Balance (KSh)</label>
@@ -130,14 +130,13 @@ const EntryForm = ({ broker, entry, previousBalance, onSave, onCancel }) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Broker Card Component
+// Broker Card Component - ✅ Shows phone in 07XX format
 // ─────────────────────────────────────────────────────────────
 const BrokerCard = ({ broker, ledgerEntries, onExpand, isExpanded, onRefresh }) => {
   const [showEntryForm, setShowEntryForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [statement, setStatement] = useState('');
   
-  // Calculate current balance from ledger entries or opening balance
   const currentBalance = useMemo(() => {
     if (!ledgerEntries || ledgerEntries.length === 0) return broker.opening_balance || 0;
     const lastEntry = ledgerEntries[ledgerEntries.length - 1];
@@ -181,7 +180,6 @@ const BrokerCard = ({ broker, ledgerEntries, onExpand, isExpanded, onRefresh }) 
   };
 
   const handleGenerateStatement = () => {
-    // Get last 7 days
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     const recent = ledgerEntries.filter(e => new Date(e.date) >= weekAgo).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -227,7 +225,8 @@ const BrokerCard = ({ broker, ledgerEntries, onExpand, isExpanded, onRefresh }) 
         <div className="flex items-start justify-between">
           <div>
             <h3 className="font-semibold text-gray-900">{broker.name}</h3>
-            {broker.phone && <p className="text-sm text-gray-500">📱 {broker.phone}</p>}
+            {/* ✅ Show phone in 07XX format */}
+            {broker.phone && <p className="text-sm text-gray-500">📱 {formatPhoneForDisplay(broker.phone, 'local')}</p>}
             {broker.area && <p className="text-sm text-gray-500">📍 {broker.area}</p>}
           </div>
           <div className={`px-4 py-2 rounded-lg font-semibold ${currentBalance >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -293,13 +292,12 @@ const BrokerCard = ({ broker, ledgerEntries, onExpand, isExpanded, onRefresh }) 
 // ─────────────────────────────────────────────────────────────
 export default function BrokerLedgerPage() {
   const navigate = useNavigate();
-  const { brokers, loading, error, refresh } = useData();  // ✅ Use DataContext
+  const { brokers, loading, error, refresh } = useData();
   
   const [expandedBrokerId, setExpandedBrokerId] = useState(null);
   const [showAddBrokerForm, setShowAddBrokerForm] = useState(false);
-  const [brokerLedgers, setBrokerLedgers] = useState({});  // Store ledger entries per broker
+  const [brokerLedgers, setBrokerLedgers] = useState({});
 
-  // ✅ Fetch broker_ledger entries for each broker when expanded
   const fetchBrokerLedger = async (brokerId) => {
     try {
       const { data, error } = await supabase
@@ -321,7 +319,7 @@ export default function BrokerLedgerPage() {
       setExpandedBrokerId(null);
     } else {
       setExpandedBrokerId(brokerId);
-      await fetchBrokerLedger(brokerId);  // ✅ Fetch entries when expanding
+      await fetchBrokerLedger(brokerId);
     }
   };
 
@@ -330,7 +328,6 @@ export default function BrokerLedgerPage() {
     refresh();
   };
 
-  // Loading/Error states
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="animate-spin rounded-full h-12 w-12 border-4 border-amber-500 border-t-transparent"></div>
@@ -367,7 +364,7 @@ export default function BrokerLedgerPage() {
           <BrokerCard
             key={broker.id}
             broker={broker}
-            ledgerEntries={brokerLedgers[broker.id] || []}  // ✅ Pass fetched entries
+            ledgerEntries={brokerLedgers[broker.id] || []}
             onExpand={handleExpand}
             isExpanded={expandedBrokerId === broker.id}
             onRefresh={() => { if (expandedBrokerId === broker.id) fetchBrokerLedger(broker.id); }}

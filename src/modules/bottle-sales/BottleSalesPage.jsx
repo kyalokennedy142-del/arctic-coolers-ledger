@@ -356,7 +356,7 @@ export default function BottleSalesPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-4 md:px-6 py-4 sticky top-0 z-20">
+      <header className="bg-linear-to-r from-blue-600 to-cyan-600 text-white px-4 md:px-6 py-4 sticky top-0 z-20">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button onClick={() => navigate('/')} className="p-2 hover:bg-white/20 rounded-lg">←</button>

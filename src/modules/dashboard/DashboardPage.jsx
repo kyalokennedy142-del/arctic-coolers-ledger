@@ -3,12 +3,12 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatKSH } from '../../utils/formatCurrency';
+import { formatKSH } from '../../utils/formatCurrency';  // ✅ Now works!
 import toast from 'react-hot-toast';
 
 const DashboardPage = () => {
   const { user, signOut, isAdmin } = useAuth();
-  const { customers, brokers, purchases, transactions, loading, error } = useData();
+  const { customers, brokers, purchases, transactions, loading, error, refresh } = useData();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -63,7 +63,7 @@ const DashboardPage = () => {
       <div className="min-h-screen bg-linear-to-br from-blue-600 via-blue-700 to-cyan-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-xl">
           <p className="text-red-600 font-medium mb-2">⚠️ {error}</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button onClick={() => { refresh(); window.location.reload(); }} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             Retry
           </button>
         </div>
@@ -103,7 +103,7 @@ const DashboardPage = () => {
         {/* Main Stats Cards */}
         <div className="grid gap-6 md:grid-cols-3 mb-6">
           {/* Total Customers */}
-          <div className="bg-linear-to-brrom-emerald-400 to-teal-500 rounded-2xl p-6 text-white shadow-xl">
+          <div className="bg-linear-to-br from-emerald-400 to-teal-500 rounded-2xl p-6 text-white shadow-xl">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-100 text-sm font-medium">Total Customers</p>
@@ -153,6 +153,7 @@ const DashboardPage = () => {
           <h3 className="text-white text-lg font-semibold mb-4">Quick Access</h3>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             
+            {/* Credit Statements */}
             <Link to="/credit-statements" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -170,6 +171,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Broker Ledger */}
             <Link to="/brokers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -187,6 +189,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Customers */}
             <Link to="/customers" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -203,25 +206,26 @@ const DashboardPage = () => {
                 <svg className="h-5 w-5 text-gray-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </div>
             </Link>
-            // Add Bottle Sales tile to the navigation grid (around line 200+)
-<Link to="/bottle-sales" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
-  <div className="flex items-center justify-between">
-    <div className="flex items-center gap-4">
-      <div className="bg-blue-100 p-3 rounded-xl group-hover:bg-blue-200 transition-colors">
-        <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      </div>
-      <div>
-        <p className="font-semibold text-gray-900">Bottle Sales</p>
-        <p className="text-sm text-gray-500">Track bottle deliveries</p>
-      </div>
-    </div>
-    <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-  </div>
-</Link>
 
+            {/* ✅ Bottle Sales - NEW */}
+            <Link to="/bottle-sales" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-100 p-3 rounded-xl group-hover:bg-blue-200 transition-colors">
+                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">Bottle Sales</p>
+                    <p className="text-sm text-gray-500">Track bottle deliveries</p>
+                  </div>
+                </div>
+                <svg className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </div>
+            </Link>
 
+            {/* Purchases */}
             <Link to="/purchases" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -239,6 +243,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* AI Reminders */}
             <Link to="/reminders" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -256,6 +261,7 @@ const DashboardPage = () => {
               </div>
             </Link>
 
+            {/* Admin Panel (only for admins) */}
             {isAdmin && (
               <Link to="/admin" className="bg-white/95 backdrop-blur rounded-xl p-5 shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 group border-2 border-purple-300">
                 <div className="flex items-center justify-between">

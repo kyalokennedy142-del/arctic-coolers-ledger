@@ -1,49 +1,92 @@
 // src/utils/formatCurrency.js
 
-/**
- * Format phone number for WhatsApp (convert to +254 format)
- * @param {string} phone - Phone number
- * @returns {string} Formatted phone number (e.g., "+254712345678")
- */
-export const formatPhoneForWhatsApp = (phone) => {
-  if (!phone) return '';
-  
-  // Remove all non-digit characters
-  let cleaned = phone.replace(/\D/g, '');
-  
-  // Remove + if present
-  if (cleaned.startsWith('+')) {
-    cleaned = cleaned.substring(1);
-  }
-  
-  // Convert Kenyan formats to +254
-  if (cleaned.startsWith('0') && cleaned.length === 10) {
-    cleaned = '254' + cleaned.slice(1);
-  }
-  
-  // If 9 digits, add 254 prefix
-  if (cleaned.length === 9) {
-    cleaned = '254' + cleaned;
-  }
-  
-  // Add + prefix for WhatsApp
-  return '+' + cleaned;
+export const formatKSH = (amount) => {
+  const num = Number(amount) || 0;
+  return new Intl.NumberFormat('en-KE', {
+    style: 'currency',
+    currency: 'KES',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num).replace('KES', 'KSH');
+};
+
+export const formatDate = (dateStr) => {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
 };
 
 /**
- * Format phone for display (e.g., "+254 712 345 678")
+ * Format phone for display (07XX or +254 format)
  * @param {string} phone - Phone number
- * @returns {string} Formatted for display
+ * @param {string} format - 'local' (07XX) or 'international' (+254)
+ * @returns {string} Formatted phone number
  */
-export const formatPhoneForDisplay = (phone) => {
+export const formatPhoneForDisplay = (phone, format = 'local') => {
   if (!phone) return '';
   
-  const formatted = formatPhoneForWhatsApp(phone);
+  // Convert to string and remove all non-digits
+  let cleaned = phone.toString().replace(/\D/g, '');
   
-  // Format as +254 712 345 678
-  if (formatted.length === 13) { // +254712345678
-    return `${formatted.substring(0, 4)} ${formatted.substring(4, 7)} ${formatted.substring(7, 10)} ${formatted.substring(10)}`;
+  // Remove leading zeros
+  cleaned = cleaned.replace(/^0+/, '');
+  
+  // Handle Kenyan numbers
+  if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('1'))) {
+    if (format === 'local') {
+      return `0${cleaned}`; // 07XXXXXXXX
+    } else {
+      return `+254${cleaned}`; // +2547XXXXXXXX
+    }
   }
   
-  return formatted;
+  // If already has 254 prefix
+  if (cleaned.length === 12 && cleaned.startsWith('254')) {
+    if (format === 'local') {
+      return `0${cleaned.substring(3)}`;
+    } else {
+      return `+${cleaned}`;
+    }
+  }
+  
+  // Return as-is if doesn't match Kenyan format
+  return phone;
+};
+
+export const formatPhoneForWhatsApp = (phone) => {
+  if (!phone) return '';
+  let cleaned = phone.toString().replace(/\D/g, '');
+  cleaned = cleaned.replace(/^0+/, '');
+  
+  if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('1'))) {
+    return `+254${cleaned}`;
+  }
+  
+  if (cleaned.length === 12 && cleaned.startsWith('254')) {
+    return `+${cleaned}`;
+  }
+  
+  if (cleaned.length === 13 && cleaned.startsWith('+254')) {
+    return cleaned;
+  }
+  
+  return cleaned;
+};
+
+export const getInactivityBadge = (lastTransactionDate) => {
+  if (!lastTransactionDate) {
+    return { label: 'Inactive', color: 'red', days: Infinity };
+  }
+  const lastDate = new Date(lastTransactionDate);
+  const now = new Date();
+  const diffTime = Math.abs(now - lastDate);
+  const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (days < 14) return { label: 'Active', color: 'green', days };
+  if (days <= 30) return { label: 'At Risk', color: 'yellow', days };
+  return { label: 'Inactive', color: 'red', days };
 };
