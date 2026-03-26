@@ -2,12 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- ✅ CORRECT: Remove base path from favicon - Vite adds it during build -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>aqua-credit-ledger</title>
-    <script type="module" crossorigin src="/arctic-coolers-ledger/assets/index-Df0yOUt-.js"></script>
+    <script type="module" crossorigin src="/arctic-coolers-ledger/assets/index-CzSv4Snb.js"></script>
     <link rel="stylesheet" crossorigin href="/arctic-coolers-ledger/assets/index-CSAQls4o.css">
-  </head>
+  <link rel="manifest" href="/arctic-coolers-ledger/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/arctic-coolers-ledger/registerSW.js"></script></head>
   <body>
-    <div id="root"></div>  </body>
+    <div id="root"></div>
+    <!-- ✅ CORRECT: Script path stays as /src/main.jsx -->
+  </body>
 </html>

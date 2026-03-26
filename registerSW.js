@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/arctic-coolers-ledger/sw.js', { scope: '/arctic-coolers-ledger/' })})}
